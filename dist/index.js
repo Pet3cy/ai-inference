@@ -61551,8 +61551,8 @@ async function run() {
         // Get temperature and topP (prompt YAML modelParameters takes precedence over action inputs)
         const temperatureInput = coreExports.getInput('temperature');
         const topPInput = coreExports.getInput('top-p');
-        const temperature = promptConfig?.modelParameters?.temperature ?? (temperatureInput !== '' ? parseFloat(temperatureInput) : undefined);
-        const topP = promptConfig?.modelParameters?.topP ?? (topPInput !== '' ? parseFloat(topPInput) : undefined);
+        const temperature = promptConfig?.modelParameters?.temperature ?? (temperatureInput ? parseFloat(temperatureInput) : undefined);
+        const topP = promptConfig?.modelParameters?.topP ?? (topPInput ? parseFloat(topPInput) : undefined);
         // Parse custom headers
         const customHeadersInput = coreExports.getInput('custom-headers');
         const customHeaders = parseCustomHeaders(customHeadersInput);

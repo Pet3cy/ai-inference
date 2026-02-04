@@ -69,8 +69,8 @@ export async function run(): Promise<void> {
     const temperatureInput = core.getInput('temperature')
     const topPInput = core.getInput('top-p')
     const temperature =
-      promptConfig?.modelParameters?.temperature ?? (temperatureInput !== '' ? parseFloat(temperatureInput) : undefined)
-    const topP = promptConfig?.modelParameters?.topP ?? (topPInput !== '' ? parseFloat(topPInput) : undefined)
+      promptConfig?.modelParameters?.temperature ?? (temperatureInput ? parseFloat(temperatureInput) : undefined)
+    const topP = promptConfig?.modelParameters?.topP ?? (topPInput ? parseFloat(topPInput) : undefined)
 
     // Parse custom headers
     const customHeadersInput = core.getInput('custom-headers')
