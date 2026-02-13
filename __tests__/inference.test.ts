@@ -663,5 +663,34 @@ describe('inference.ts', () => {
       expect(mockCreate.mock.calls[0][0]).toHaveProperty('max_tokens', 100)
       expect(mockCreate.mock.calls[0][0]).not.toHaveProperty('max_completion_tokens')
     })
+
+    it('sends neither token param when both are undefined', async () => {
+      const requestWithNoTokens = {
+        ...mockRequest,
+        maxCompletionTokens: undefined,
+        maxTokens: undefined,
+      }
+
+      const mockResponse = {
+        choices: [
+          {
+            message: {
+              content: 'No token limit response',
+            },
+          },
+        ],
+      }
+
+      mockCreate.mockResolvedValueOnce(mockResponse)
+
+      const result = await simpleInference(requestWithNoTokens)
+
+      expect(result).toBe('No token limit response')
+      expect(mockCreate).toHaveBeenCalledTimes(1)
+
+      const params = mockCreate.mock.calls[0][0]
+      expect(params).not.toHaveProperty('max_tokens')
+      expect(params).not.toHaveProperty('max_completion_tokens')
+    })
   })
 })
