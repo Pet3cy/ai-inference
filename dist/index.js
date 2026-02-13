@@ -58300,8 +58300,9 @@ OpenAI.Responses = Responses;
 OpenAI.Evals = Evals;
 OpenAI.Containers = Containers;
 
+// Note: solution around models using different underlying max tokens properties
 /**
- * Build the token limit params for a chat completion request.
+ * Build according to what input was passed, default to max_tokens.
  * Only one of max_tokens or max_completion_tokens will be set.
  */
 function buildMaxTokensParam(request) {
@@ -58420,7 +58421,9 @@ async function mcpInference(request, githubMcpClient) {
     return lastAssistantMessage?.content || null;
 }
 /**
- * Wrapper around OpenAI chat.completions.create with response validation.
+ * Wrapper around OpenAI chat.completions.create with defensive handling for cases where
+ * the SDK returns a raw string (e.g., unexpected content-type or streaming body) instead of
+ * a parsed object. Ensures an object with a 'choices' array is returned or throws a descriptive error.
  */
 async function chatCompletion(client, params, context) {
     try {
