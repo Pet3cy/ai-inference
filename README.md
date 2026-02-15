@@ -123,6 +123,33 @@ supplied via the `input` parameter in YAML format. Additionally, you can
 provide file-based variables via `file_input`, where each key maps to a file
 path.
 
+### Prompt.yml with model parameters
+
+You can specify model parameters directly in your `.prompt.yml` files using the
+`modelParameters` key:
+
+```yaml
+messages:
+  - role: system
+    content: Be as concise as possible
+  - role: user
+    content: 'Compare {{a}} and {{b}}, please'
+model: openai/gpt-4o
+modelParameters:
+  maxCompletionTokens: 500
+  temperature: 0.7
+```
+
+| Key                   | Type   | Description                                                    |
+| --------------------- | ------ | -------------------------------------------------------------- |
+| `maxCompletionTokens` | number | The maximum number of tokens to generate                       |
+| `maxTokens`           | number | The maximum number of tokens to generate (deprecated)          |
+| `temperature`         | number | The sampling temperature to use (0-1)                          |
+| `topP`                | number | The nucleus sampling parameter to use (0-1)                    |
+
+> ![Note]
+> Parameters set in `modelParameters` take precedence over the corresponding action inputs.
+
 ### Using a system prompt file
 
 In addition to the regular prompt, you can provide a system prompt file instead
@@ -287,7 +314,8 @@ the action:
 | `system-prompt-file` | Path to a file containing the system prompt. If both `system-prompt` and `system-prompt-file` are provided, `system-prompt-file` takes precedence                                                                  | `""`                                 |
 | `model`              | The model to use for inference. Must be available in the [GitHub Models](https://github.com/marketplace?type=models) catalog                                                                                       | `openai/gpt-4o`                      |
 | `endpoint`           | The endpoint to use for inference. If you're running this as part of an org, you should probably use the org-specific Models endpoint                                                                              | `https://models.github.ai/inference` |
-| `max-tokens`         | The max number of tokens to generate                                                                                                                                                                               | 200                                  |
+| `max-tokens`         | The maximum number of tokens to generate (deprecated, use `max-completion-tokens` instead)                                                                                                                         | 200                                  |
+| `max-completion-tokens` | The maximum number of tokens to generate                                                                                                                                                                        | `""`                                 |
 | `temperature`        | The sampling temperature to use (0-1)                                                                                                                                                                              | `""`                                 |
 | `top-p`              | The nucleus sampling parameter to use (0-1)                                                                                                                                                                        | `""`                                 |
 | `enable-github-mcp`  | Enable Model Context Protocol integration with GitHub tools                                                                                                                                                        | `false`                              |
