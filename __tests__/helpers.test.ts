@@ -214,13 +214,11 @@ valid123: value5`
 
       expect(result).toEqual({
         'valid-header': 'value1',
+        invalid_underscore: 'value3',
         valid123: 'value5',
       })
 
       expect(core.warning).toHaveBeenCalledWith(expect.stringContaining('Skipping invalid header name: invalid header'))
-      expect(core.warning).toHaveBeenCalledWith(
-        expect.stringContaining('Skipping invalid header name: invalid_underscore'),
-      )
       expect(core.warning).toHaveBeenCalledWith(expect.stringContaining('Skipping invalid header name: invalid@header'))
     })
 
