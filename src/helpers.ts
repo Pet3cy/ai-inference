@@ -143,9 +143,9 @@ function validateAndMaskHeaders(headers: Record<string, unknown>): Record<string
     const lowerName = name.toLowerCase()
     const isSensitive = sensitivePatterns.some(pattern => lowerName.includes(pattern))
     if (isSensitive) {
-      core.info(`Custom header added: ${name}: ***MASKED***`)
+      core.debug(`Custom header added: ${name}: ***MASKED***`)
     } else {
-      core.info(`Custom header added: ${name}: ${stringValue}`)
+      core.debug(`Custom header added: ${name}: ${stringValue}`)
     }
   }
 
