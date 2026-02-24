@@ -58301,6 +58301,19 @@ OpenAI.Evals = Evals;
 OpenAI.Containers = Containers;
 
 /**
+ * Build according to what input was passed, default to max_tokens.
+ * Only one of max_tokens or max_completion_tokens will be set.
+ */
+function buildMaxTokensParam(request) {
+    if (request.maxCompletionTokens != null) {
+        return { max_completion_tokens: request.maxCompletionTokens };
+    }
+    if (request.maxTokens != null) {
+        return { max_tokens: request.maxTokens };
+    }
+    return {};
+}
+/**
  * Simple one-shot inference without tools
  */
 async function simpleInference(request) {
@@ -58312,10 +58325,10 @@ async function simpleInference(request) {
     });
     const chatCompletionRequest = {
         messages: request.messages,
-        max_completion_tokens: request.maxTokens,
         model: request.modelName,
         temperature: request.temperature,
         top_p: request.topP,
+        ...buildMaxTokensParam(request), // Note: solution around models using different underlying max tokens properties
     };
     // Add response format if specified
     if (request.responseFormat) {
@@ -58349,10 +58362,10 @@ async function mcpInference(request, githubMcpClient) {
         coreExports.info(`MCP inference iteration ${iterationCount}`);
         const chatCompletionRequest = {
             messages: messages,
-            max_completion_tokens: request.maxTokens,
             model: request.modelName,
             temperature: request.temperature,
             top_p: request.topP,
+            ...buildMaxTokensParam(request), // Note: solution around models using different underlying max tokens properties
         };
         // Add response format if specified (only on final iteration to avoid conflicts with tool calls)
         if (finalMessage && request.responseFormat) {
@@ -61382,7 +61395,8 @@ function validateAndMaskHeaders(headers) {
 /**
  * Build complete InferenceRequest from prompt config and inputs
  */
-function buildInferenceRequest(promptConfig, systemPrompt, prompt, modelName, temperature, topP, maxTokens, endpoint, token, customHeaders) {
+function buildInferenceRequest(promptConfig, systemPrompt, prompt, modelName, temperature, topP, maxTokens, // Deprecated
+maxCompletionTokens, endpoint, token, customHeaders) {
     const messages = buildMessages(promptConfig, systemPrompt, prompt);
     const responseFormat = buildResponseFormat(promptConfig);
     return {
@@ -61390,7 +61404,8 @@ function buildInferenceRequest(promptConfig, systemPrompt, prompt, modelName, te
         modelName,
         temperature,
         topP,
-        maxTokens,
+        maxTokens, // Deprecated
+        maxCompletionTokens,
         endpoint,
         token,
         responseFormat,
@@ -61536,10 +61551,11 @@ async function run() {
         }
         // Get common parameters
         const modelName = promptConfig?.model || coreExports.getInput('model');
-        let maxTokens = promptConfig?.modelParameters?.maxTokens ?? coreExports.getInput('max-tokens');
-        if (typeof maxTokens === 'string') {
-            maxTokens = parseInt(maxTokens, 10);
-        }
+        // Parse token limit inputs
+        const maxCompletionTokensInput = promptConfig?.modelParameters?.maxCompletionTokens ?? coreExports.getInput('max-completion-tokens');
+        const maxCompletionTokens = maxCompletionTokensInput ? Number(maxCompletionTokensInput) : undefined;
+        const maxTokensInput = promptConfig?.modelParameters?.maxTokens ?? coreExports.getInput('max-tokens');
+        const maxTokens = maxCompletionTokens != null ? undefined : maxTokensInput ? Number(maxTokensInput) : undefined;
         const token = process.env['GITHUB_TOKEN'] || coreExports.getInput('token');
         if (token === undefined) {
             throw new Error('GITHUB_TOKEN is not set');
@@ -61557,7 +61573,7 @@ async function run() {
         const customHeadersInput = coreExports.getInput('custom-headers');
         const customHeaders = parseCustomHeaders(customHeadersInput);
         // Build the inference request with pre-processed messages and response format
-        const inferenceRequest = buildInferenceRequest(promptConfig, systemPrompt, prompt, modelName, temperature, topP, maxTokens, endpoint, token, customHeaders);
+        const inferenceRequest = buildInferenceRequest(promptConfig, systemPrompt, prompt, modelName, temperature, topP, maxTokens, maxCompletionTokens, endpoint, token, customHeaders);
         const enableMcp = coreExports.getBooleanInput('enable-github-mcp') || false;
         let modelResponse = null;
         if (enableMcp) {

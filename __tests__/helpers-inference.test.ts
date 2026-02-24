@@ -109,6 +109,7 @@ describe('helpers.ts - inference request building', () => {
         undefined,
         undefined,
         100,
+        undefined,
         'https://api.test.com',
         'test-token',
       )
@@ -122,6 +123,7 @@ describe('helpers.ts - inference request building', () => {
         temperature: undefined,
         topP: undefined,
         maxTokens: 100,
+        maxCompletionTokens: undefined,
         endpoint: 'https://api.test.com',
         token: 'test-token',
         responseFormat: {
@@ -143,6 +145,7 @@ describe('helpers.ts - inference request building', () => {
         undefined,
         undefined,
         100,
+        undefined,
         'https://api.test.com',
         'test-token',
       )
@@ -156,6 +159,7 @@ describe('helpers.ts - inference request building', () => {
         temperature: undefined,
         topP: undefined,
         maxTokens: 100,
+        maxCompletionTokens: undefined,
         endpoint: 'https://api.test.com',
         token: 'test-token',
         responseFormat: undefined,

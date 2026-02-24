@@ -43,9 +43,13 @@ inputs:
     required: false
     default: ''
   max-tokens:
-    description: The maximum number of tokens to generate
+    description: The maximum number of tokens to generate (deprecated)
     required: false
     default: '200'
+  max-completion-tokens:
+    description: The maximum number of tokens to generate
+    required: false
+    default: ''
   temperature:
     description: The sampling temperature to use (0-1)
     required: false

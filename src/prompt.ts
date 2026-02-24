@@ -8,7 +8,8 @@ export interface PromptMessage {
 }
 
 export interface ModelParameters {
-  maxTokens?: number
+  maxTokens?: number // Deprecated
+  maxCompletionTokens?: number
   temperature?: number
   topP?: number
 }

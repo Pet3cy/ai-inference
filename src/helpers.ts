@@ -162,7 +162,8 @@ export function buildInferenceRequest(
   modelName: string,
   temperature: number | undefined,
   topP: number | undefined,
-  maxTokens: number,
+  maxTokens: number | undefined, // Deprecated
+  maxCompletionTokens: number | undefined,
   endpoint: string,
   token: string,
   customHeaders?: Record<string, string>,
@@ -175,7 +176,8 @@ export function buildInferenceRequest(
     modelName,
     temperature,
     topP,
-    maxTokens,
+    maxTokens, // Deprecated
+    maxCompletionTokens,
     endpoint,
     token,
     responseFormat,

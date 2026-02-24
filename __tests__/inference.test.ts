@@ -31,7 +31,7 @@ describe('inference.ts', () => {
       {role: 'user' as const, content: 'Hello, AI!'},
     ],
     modelName: 'gpt-4',
-    maxTokens: 100,
+    maxCompletionTokens: 100,
     endpoint: 'https://api.test.com',
     token: 'test-token',
   }
@@ -631,6 +631,66 @@ describe('inference.ts', () => {
       // The function should make two calls: one normal, then one with response format
       expect(mockCreate).toHaveBeenCalledTimes(2)
       expect(result).toBe('{"immediate": "result"}')
+    })
+  })
+
+  describe('token param routing', () => {
+    it('sends max_tokens when only maxTokens is set', async () => {
+      const requestWithMaxTokens = {
+        ...mockRequest,
+        maxCompletionTokens: undefined,
+        maxTokens: 100,
+      }
+
+      const mockResponse = {
+        choices: [
+          {
+            message: {
+              content: 'Direct max_tokens response',
+            },
+          },
+        ],
+      }
+
+      mockCreate.mockResolvedValueOnce(mockResponse)
+
+      const result = await simpleInference(requestWithMaxTokens)
+
+      expect(result).toBe('Direct max_tokens response')
+      expect(mockCreate).toHaveBeenCalledTimes(1)
+
+      // Should have sent max_tokens directly
+      expect(mockCreate.mock.calls[0][0]).toHaveProperty('max_tokens', 100)
+      expect(mockCreate.mock.calls[0][0]).not.toHaveProperty('max_completion_tokens')
+    })
+
+    it('sends neither token param when both are undefined', async () => {
+      const requestWithNoTokens = {
+        ...mockRequest,
+        maxCompletionTokens: undefined,
+        maxTokens: undefined,
+      }
+
+      const mockResponse = {
+        choices: [
+          {
+            message: {
+              content: 'No token limit response',
+            },
+          },
+        ],
+      }
+
+      mockCreate.mockResolvedValueOnce(mockResponse)
+
+      const result = await simpleInference(requestWithNoTokens)
+
+      expect(result).toBe('No token limit response')
+      expect(mockCreate).toHaveBeenCalledTimes(1)
+
+      const params = mockCreate.mock.calls[0][0]
+      expect(params).not.toHaveProperty('max_tokens')
+      expect(params).not.toHaveProperty('max_completion_tokens')
     })
   })
 })
