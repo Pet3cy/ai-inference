@@ -6,9 +6,11 @@ import {PromptConfig} from './prompt.js'
 import {InferenceRequest} from './inference.js'
 
 /**
- * Validates a path to prevent directory traversal attacks
- * @param inputPath - The path to validate
- * @returns The resolved absolute path if valid
+ * Ensure `inputPath` does not escape the current working directory.
+ *
+ * @param inputPath - A file or directory path to validate (may be relative or absolute)
+ * @returns The resolved absolute path when `inputPath` is within the current working directory
+ * @throws Error if `inputPath` resolves to a location outside the current working directory
  */
 export function validatePath(inputPath: string): string {
   const baseDir = process.cwd()
@@ -23,11 +25,13 @@ export function validatePath(inputPath: string): string {
 }
 
 /**
- * Helper function to load content from a file or use fallback input
- * @param filePathInput - Input name for the file path
- * @param contentInput - Input name for the direct content
- * @param defaultValue - Default value to use if neither file nor content is provided
- * @returns The loaded content
+ * Load content from an action input file, from a direct content input, or from a provided default.
+ *
+ * @param filePathInput - Action input name that, when set, is resolved and read as a UTF-8 file path
+ * @param contentInput - Action input name that, when set, provides the content string directly
+ * @param defaultValue - Value to return when neither input is provided
+ * @returns The resolved content string
+ * @throws Error if the file path input is set but resolves to an invalid or missing file, or if neither input nor defaultValue is provided
  */
 export function loadContentFromFileOrInput(filePathInput: string, contentInput: string, defaultValue?: string): string {
   const filePath = core.getInput(filePathInput)
