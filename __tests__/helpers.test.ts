@@ -203,18 +203,59 @@ password: pass123`
       expect(core.debug).toHaveBeenCalledWith('Custom header added: serviceName: my-service')
     })
 
-    it('masks additional sensitive header patterns', () => {
+    it('does not mask cookie, session, credential, or bearer-only headers', () => {
       const yamlInput = `Cookie: session_id=12345
-X-Bearer-Token: abcdef
 Session-ID: xyz789
-X-Credentials: user:pass`
+X-Credentials: user:pass
+X-Service-Name: my-app`
 
-      parseCustomHeaders(yamlInput)
+      const result = parseCustomHeaders(yamlInput)
 
-      expect(core.debug).toHaveBeenCalledWith('Custom header added: Cookie: ***MASKED***')
+      expect(result).toEqual({
+        Cookie: 'session_id=12345',
+        'Session-ID': 'xyz789',
+        'X-Credentials': 'user:pass',
+        'X-Service-Name': 'my-app',
+      })
+
+      // None of these should be masked under the reduced sensitivePatterns
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: Cookie: session_id=12345')
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: Session-ID: xyz789')
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Credentials: user:pass')
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Service-Name: my-app')
+    })
+
+    it('still masks headers containing token even when prefixed with bearer', () => {
+      // 'token' is still in sensitivePatterns, so X-Bearer-Token is masked via 'token' match
+      const yamlInput = `X-Bearer-Token: abcdef`
+
+      const result = parseCustomHeaders(yamlInput)
+
+      expect(result).toEqual({'X-Bearer-Token': 'abcdef'})
       expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Bearer-Token: ***MASKED***')
-      expect(core.debug).toHaveBeenCalledWith('Custom header added: Session-ID: ***MASKED***')
-      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Credentials: ***MASKED***')
+    })
+
+    it('only masks headers matching key, token, secret, password, or authorization', () => {
+      const yamlInput = `api-key: key-value
+my-token: tok123
+super-secret: sec456
+admin-password: pass789
+Authorization: Bearer xyz
+non-sensitive: visible-value`
+
+      const result = parseCustomHeaders(yamlInput)
+
+      expect(result['non-sensitive']).toBe('visible-value')
+
+      // Sensitive patterns still trigger masking
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: api-key: ***MASKED***')
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: my-token: ***MASKED***')
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: super-secret: ***MASKED***')
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: admin-password: ***MASKED***')
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: Authorization: ***MASKED***')
+
+      // Non-sensitive header should not be masked
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: non-sensitive: visible-value')
     })
 
     it('validates header names and skips invalid ones', () => {

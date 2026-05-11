@@ -291,5 +291,77 @@ describe('mcp.ts', () => {
       expect(results[0].content).toContain('Result 1')
       expect(results[1].content).toContain('Error:')
     })
+
+    it('executes tool calls sequentially, preserving result order', async () => {
+      const executionOrder: number[] = []
+
+      const toolCalls = [
+        {id: 'call-1', type: 'function', function: {name: 'tool-1', arguments: '{}'}},
+        {id: 'call-2', type: 'function', function: {name: 'tool-2', arguments: '{}'}},
+        {id: 'call-3', type: 'function', function: {name: 'tool-3', arguments: '{}'}},
+      ]
+
+      mockCallTool
+        .mockImplementationOnce(async () => {
+          executionOrder.push(1)
+          return {content: [{type: 'text', text: 'Result 1'}]}
+        })
+        .mockImplementationOnce(async () => {
+          executionOrder.push(2)
+          return {content: [{type: 'text', text: 'Result 2'}]}
+        })
+        .mockImplementationOnce(async () => {
+          executionOrder.push(3)
+          return {content: [{type: 'text', text: 'Result 3'}]}
+        })
+
+      const results = await executeToolCalls(mockClient, toolCalls)
+
+      // Results must be in input order
+      expect(results[0].tool_call_id).toBe('call-1')
+      expect(results[1].tool_call_id).toBe('call-2')
+      expect(results[2].tool_call_id).toBe('call-3')
+
+      // Sequential execution: each tool starts only after the previous one resolves
+      expect(executionOrder).toEqual([1, 2, 3])
+    })
+
+    it('second tool is not started until first tool resolves', async () => {
+      let firstToolResolved = false
+
+      const toolCalls = [
+        {id: 'call-1', type: 'function', function: {name: 'tool-1', arguments: '{}'}},
+        {id: 'call-2', type: 'function', function: {name: 'tool-2', arguments: '{}'}},
+      ]
+
+      mockCallTool
+        .mockImplementationOnce(async () => {
+          firstToolResolved = true
+          return {content: [{type: 'text', text: 'Result 1'}]}
+        })
+        .mockImplementationOnce(async () => {
+          // When tool-2 runs, tool-1 must have already resolved
+          expect(firstToolResolved).toBe(true)
+          return {content: [{type: 'text', text: 'Result 2'}]}
+        })
+
+      await executeToolCalls(mockClient, toolCalls)
+
+      expect(mockCallTool).toHaveBeenCalledTimes(2)
+    })
+
+    it('returns results for a single tool call', async () => {
+      const toolCalls = [
+        {id: 'call-only', type: 'function', function: {name: 'single-tool', arguments: '{"x": 1}'}},
+      ]
+
+      mockCallTool.mockResolvedValueOnce({content: [{type: 'text', text: 'Only result'}]})
+
+      const results = await executeToolCalls(mockClient, toolCalls)
+
+      expect(results).toHaveLength(1)
+      expect(results[0].tool_call_id).toBe('call-only')
+      expect(results[0].name).toBe('single-tool')
+    })
   })
 })
