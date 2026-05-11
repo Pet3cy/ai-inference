@@ -55,41 +55,35 @@ export function parseFileTemplateVariables(fileInput: string): TemplateVariables
     return {}
   }
 
+  let parsed: Record<string, unknown>
   try {
-    const parsed = yaml.load(fileInput) as Record<string, unknown>
+    parsed = yaml.load(fileInput) as Record<string, unknown>
     if (typeof parsed !== 'object' || parsed === null) {
       throw new Error('File template variables must be a YAML object')
     }
-
-    const result: TemplateVariables = {}
-    for (const [key, value] of Object.entries(parsed)) {
-      if (typeof value !== 'string') {
-        throw new Error(`File template variable '${key}' must be a string file path`)
-      }
-      const filePath = value
-      const safePath = validatePath(filePath)
-      if (!fs.existsSync(safePath)) {
-        throw new Error(`File for template variable '${key}' was not found: ${filePath}`)
-      }
-      try {
-        result[key] = fs.readFileSync(safePath, 'utf-8')
-      } catch (err) {
-        throw new Error(
-          `Failed to read file for template variable '${key}' at path '${filePath}': ${err instanceof Error ? err.message : 'Unknown error'}`,
-        )
-      }
-    }
-
-    return result
   } catch (error) {
     throw new Error(
       `Failed to parse file template variables: ${error instanceof Error ? error.message : 'Unknown error'}`,
     )
   }
+
+  const result: TemplateVariables = {}
+  for (const [key, value] of Object.entries(parsed)) {
+    if (typeof value !== 'string') {
+      throw new Error(`File template variable '${key}' must be a string file path`)
+    }
+    const safePath = validatePath(value)
+    if (!fs.existsSync(safePath)) {
+      throw new Error(`File for template variable '${key}' was not found: ${value}`)
+    }
+    result[key] = fs.readFileSync(safePath, 'utf-8')
+  }
+
+  return result
 }
 
 /**
- * Replace template variables in text using {{variable}} syntax
+
  */
 export function replaceTemplateVariables(text: string, variables: TemplateVariables): string {
   return text.replace(/\{\{([\w.-]+)\}\}/g, (match, variableName) => {
