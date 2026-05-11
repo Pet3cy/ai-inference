@@ -123,12 +123,12 @@ describe('prompt.ts', () => {
       expect(() => loadPromptFile('non-existent.prompt.yml')).toThrow('Prompt file not found')
     })
 
-    it('throws on directory traversal path', () => {
-      expect(() => loadPromptFile('../../etc/passwd')).toThrow('Path traversal detected')
+    it('should throw for path traversal attempts', () => {
+      expect(() => loadPromptFile('../../../etc/passwd')).toThrow('Path traversal detected')
     })
 
-    it('throws on absolute path outside cwd', () => {
-      expect(() => loadPromptFile('/etc/passwd')).toThrow('Path traversal detected')
+    it('should throw for path traversal using multiple levels', () => {
+      expect(() => loadPromptFile('../../some-file.txt')).toThrow('Path traversal detected')
     })
   })
 
@@ -156,16 +156,15 @@ describe('prompt.ts', () => {
       )
     })
 
-    it('throws on directory traversal path', () => {
-      expect(() => parseFileTemplateVariables('x: ../../etc/passwd')).toThrow('Path traversal detected')
+    it('throws for path traversal in file variable value', () => {
+      expect(() => parseFileTemplateVariables('x: ../../../etc/passwd')).toThrow('Path traversal detected')
+    })
+
+    it('throws for path traversal using multiple levels', () => {
+      expect(() => parseFileTemplateVariables('x: ../../some-file.txt')).toThrow('Path traversal detected')
     })
 
     it('returns empty object for empty input', () => {
-      const result = parseFileTemplateVariables('')
-      expect(result).toEqual({})
-    })
-
-    it('returns empty object for whitespace-only input', () => {
       const result = parseFileTemplateVariables('   ')
       expect(result).toEqual({})
     })

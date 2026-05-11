@@ -1,5 +1,6 @@
 import {vi, it, expect, beforeEach, describe} from 'vitest'
 import * as core from '../__fixtures__/core.js'
+import * as path from 'path'
 
 const mockExistsSync = vi.fn()
 const mockReadFileSync = vi.fn()
@@ -16,6 +17,55 @@ const {loadContentFromFileOrInput, parseCustomHeaders, validatePath} = await imp
 describe('helpers.ts', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  describe('validatePath', () => {
+    it('resolves a relative path within cwd to an absolute path', () => {
+      const result = validatePath('some/relative/path.txt')
+      expect(result).toBe(path.resolve(process.cwd(), 'some/relative/path.txt'))
+    })
+
+    it('resolves a simple filename to an absolute path within cwd', () => {
+      const result = validatePath('file.txt')
+      expect(result).toBe(path.resolve(process.cwd(), 'file.txt'))
+    })
+
+    it('allows path with internal .. that resolves within cwd', () => {
+      const result = validatePath('a/../b/file.txt')
+      expect(result).toBe(path.resolve(process.cwd(), 'b/file.txt'))
+    })
+
+    it('allows an absolute path that is within cwd', () => {
+      const inCwdPath = path.join(process.cwd(), 'subdir', 'file.txt')
+      const result = validatePath(inCwdPath)
+      expect(result).toBe(inCwdPath)
+    })
+
+    it('throws for a path that traverses above cwd using ../', () => {
+      expect(() => validatePath('../outside.txt')).toThrow('Path traversal detected')
+    })
+
+    it('throws for a deeply nested traversal path', () => {
+      expect(() => validatePath('a/../../outside.txt')).toThrow('Path traversal detected')
+    })
+
+    it('throws for a pure .. path', () => {
+      expect(() => validatePath('..')).toThrow('Path traversal detected')
+    })
+
+    it('throws for an absolute path outside cwd', () => {
+      expect(() => validatePath('/etc/passwd')).toThrow('Path traversal detected')
+    })
+
+    it('throws for path traversal with encoded or mixed separators', () => {
+      // Multiple levels up
+      expect(() => validatePath('../../etc/passwd')).toThrow('Path traversal detected')
+    })
+
+    it('allows current directory reference (.)', () => {
+      const result = validatePath('.')
+      expect(result).toBe(path.resolve(process.cwd(), '.'))
+    })
   })
 
   describe('loadContentFromFileOrInput', () => {
@@ -121,20 +171,10 @@ describe('helpers.ts', () => {
       expect(mockReadFileSync).not.toHaveBeenCalled()
     })
 
-    it('handles undefined inputs correctly', () => {
-      const defaultValue = 'Default content'
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      core.getInput.mockImplementation(() => undefined as any)
-
-      const result = loadContentFromFileOrInput('file-input', 'content-input', defaultValue)
-
-      expect(result).toBe(defaultValue)
-    })
-
-    it('throws error when file path attempts directory traversal', () => {
+    it('throws when file path attempts directory traversal', () => {
       core.getInput.mockImplementation((name: string) => {
         if (name === 'file-input') return '../../../etc/passwd'
+        if (name === 'content-input') return ''
         return ''
       })
 
@@ -145,43 +185,16 @@ describe('helpers.ts', () => {
       expect(mockExistsSync).not.toHaveBeenCalled()
       expect(mockReadFileSync).not.toHaveBeenCalled()
     })
-  })
 
-  describe('validatePath', () => {
-    it('returns resolved absolute path for a relative path within cwd', () => {
-      const result = validatePath('some/relative/path.txt')
-      expect(result).toContain('some/relative/path.txt')
-      expect(result.startsWith('/')).toBe(true)
-    })
+    it('handles undefined inputs correctly', () => {
+      const defaultValue = 'Default content'
 
-    it('returns resolved absolute path for an already-absolute path within cwd', () => {
-      const cwd = process.cwd()
-      const absolutePath = `${cwd}/subdir/file.txt`
-      const result = validatePath(absolutePath)
-      expect(result).toBe(absolutePath)
-    })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      core.getInput.mockImplementation(() => undefined as any)
 
-    it('throws for a simple parent traversal: ..', () => {
-      expect(() => validatePath('..')).toThrow('Path traversal detected')
-    })
+      const result = loadContentFromFileOrInput('file-input', 'content-input', defaultValue)
 
-    it('throws for a path that escapes cwd via ../..', () => {
-      expect(() => validatePath('../../etc/passwd')).toThrow('Path traversal detected')
-    })
-
-    it('throws for an absolute path outside cwd', () => {
-      expect(() => validatePath('/etc/passwd')).toThrow('Path traversal detected')
-    })
-
-    it('does not throw for a path using .. that stays within cwd', () => {
-      // e.g. "subdir/../other" resolves to "other" within cwd — still safe
-      const result = validatePath('subdir/../other.txt')
-      expect(result).toContain('other.txt')
-      expect(result.startsWith('/')).toBe(true)
-    })
-
-    it('throws for a path with .. prefix mixed with valid segments that still escapes cwd', () => {
-      expect(() => validatePath('../outside/file.txt')).toThrow('Path traversal detected')
+      expect(result).toBe(defaultValue)
     })
   })
 
@@ -253,29 +266,6 @@ password: pass123`
 
       // Non-sensitive headers should not be masked
       expect(core.debug).toHaveBeenCalledWith('Custom header added: serviceName: my-service')
-    })
-
-    it('does not mask headers that were removed from sensitive patterns (bearer, cookie, session, credential)', () => {
-      const yamlInput = `X-Bearer-Token-Value: bearer-val
-Cookie: session_id=12345
-Session-ID: xyz789
-X-Credentials: user:pass`
-
-      const result = parseCustomHeaders(yamlInput)
-
-      expect(result['X-Bearer-Token-Value']).toBe('bearer-val')
-      expect(result['Cookie']).toBe('session_id=12345')
-      expect(result['Session-ID']).toBe('xyz789')
-      expect(result['X-Credentials']).toBe('user:pass')
-
-      // 'token' IS still in sensitivePatterns so X-Bearer-Token-Value still matches 'token'
-      // but 'bearer', 'cookie', 'session', 'credential' should no longer cause masking on their own
-      // Cookie header: 'cookie' pattern removed — value logged in plain text
-      expect(core.debug).toHaveBeenCalledWith('Custom header added: Cookie: session_id=12345')
-      // Session-ID: 'session' pattern removed — value logged in plain text
-      expect(core.debug).toHaveBeenCalledWith('Custom header added: Session-ID: xyz789')
-      // X-Credentials: 'credential' pattern removed — value logged in plain text
-      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Credentials: user:pass')
     })
 
     it('validates header names and skips invalid ones', () => {
@@ -418,6 +408,32 @@ header2: |
       expect(core.warning).toHaveBeenCalledWith(
         'Skipping header "header2" because its value contains newline characters, which are not allowed in HTTP header values.',
       )
+    })
+
+    it('does not mask headers with patterns removed from sensitivePatterns (credential, bearer, cookie, session)', () => {
+      // Use header names that match ONLY the removed patterns (not any of the remaining ones:
+      // key, token, secret, password, authorization)
+      const yamlInput = `Cookie: session_id=12345
+X-Session-Data: xyz789
+X-Credentials: user:pass
+X-Bearer: only-bearer-no-token`
+
+      const result = parseCustomHeaders(yamlInput)
+
+      expect(result).toEqual({
+        Cookie: 'session_id=12345',
+        'X-Session-Data': 'xyz789',
+        'X-Credentials': 'user:pass',
+        'X-Bearer': 'only-bearer-no-token',
+      })
+
+      // These patterns (credential, bearer, cookie, session) were removed from sensitivePatterns.
+      // None of these header names match the remaining patterns (key, token, secret, password, authorization),
+      // so their values should appear in plain text in the debug log, not masked.
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: Cookie: session_id=12345')
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Session-Data: xyz789')
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Credentials: user:pass')
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Bearer: only-bearer-no-token')
     })
 
     it('handles complex real-world Azure APIM example', () => {
