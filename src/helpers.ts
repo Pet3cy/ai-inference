@@ -1,5 +1,6 @@
 import * as core from '@actions/core'
 import * as fs from 'fs'
+import * as path from 'path'
 import * as yaml from 'js-yaml'
 import {PromptConfig} from './prompt.js'
 import {InferenceRequest} from './inference.js'
@@ -16,10 +17,11 @@ export function loadContentFromFileOrInput(filePathInput: string, contentInput: 
   const contentString = core.getInput(contentInput)
 
   if (filePath !== undefined && filePath !== '') {
-    if (!fs.existsSync(filePath)) {
+    const safeFilePath = validatePath(filePath)
+    if (!fs.existsSync(safeFilePath)) {
       throw new Error(`File for ${filePathInput} was not found: ${filePath}`)
     }
-    return fs.readFileSync(filePath, 'utf-8')
+    return fs.readFileSync(safeFilePath, 'utf-8')
   } else if (contentString !== undefined && contentString !== '') {
     return contentString
   } else if (defaultValue !== undefined) {
@@ -184,4 +186,25 @@ export function buildInferenceRequest(
     responseFormat,
     customHeaders,
   }
+}
+
+/**
+ * Validates and resolves a file path to prevent directory traversal attacks.
+ * Ensures the resolved path is within the current working directory.
+ * @param filePath - The untrusted file path string
+ * @returns The resolved, safe absolute path
+ * @throws Error if the path attempts to escape the working directory
+ */
+export function validatePath(filePath: string): string {
+  if (filePath.includes('\0')) {
+    throw new Error('Invalid file path: null bytes are not allowed.')
+  }
+  const baseDir = process.cwd()
+  const resolvedPath = path.resolve(baseDir, filePath)
+  const relativePath = path.relative(baseDir, resolvedPath)
+
+  if (relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+    throw new Error(`Access denied: path resolves outside the allowed directory.`)
+  }
+  return resolvedPath
 }

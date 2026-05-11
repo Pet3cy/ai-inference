@@ -1,3 +1,4 @@
+import * as path from 'path'
 import {vi, it, expect, beforeEach, describe} from 'vitest'
 import * as core from '../__fixtures__/core.js'
 
@@ -20,7 +21,7 @@ describe('helpers.ts', () => {
 
   describe('loadContentFromFileOrInput', () => {
     it('loads content from file when file path is provided', () => {
-      const filePath = '/path/to/file.txt'
+      const filePath = path.resolve(process.cwd(), 'foo.txt')
       const fileContent = 'File content here'
 
       core.getInput.mockImplementation((name: string) => {
@@ -41,7 +42,7 @@ describe('helpers.ts', () => {
     })
 
     it('throws error when file path is provided but file does not exist', () => {
-      const filePath = '/path/to/nonexistent.txt'
+      const filePath = path.resolve(process.cwd(), 'nonexistent.txt')
 
       core.getInput.mockImplementation((name: string) => {
         if (name === 'file-input') return filePath
@@ -53,7 +54,7 @@ describe('helpers.ts', () => {
 
       expect(() => {
         loadContentFromFileOrInput('file-input', 'content-input')
-      }).toThrow('File for file-input was not found: /path/to/nonexistent.txt')
+      }).toThrow(`File for file-input was not found: ${path.resolve(process.cwd(), 'nonexistent.txt')}`)
 
       expect(mockExistsSync).toHaveBeenCalledWith(filePath)
       expect(mockReadFileSync).not.toHaveBeenCalled()
@@ -78,7 +79,7 @@ describe('helpers.ts', () => {
     })
 
     it('prefers file path over content input when both are provided', () => {
-      const filePath = '/path/to/file.txt'
+      const filePath = path.resolve(process.cwd(), 'foo.txt')
       const fileContent = 'File content'
       const contentInput = 'Direct content input'
 
