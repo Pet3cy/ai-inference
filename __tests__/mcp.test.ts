@@ -291,5 +291,89 @@ describe('mcp.ts', () => {
       expect(results[0].content).toContain('Result 1')
       expect(results[1].content).toContain('Error:')
     })
+
+    it('executes tool calls sequentially, not in parallel', async () => {
+      const executionOrder: string[] = []
+      let firstResolveFn: (() => void) | undefined
+
+      const toolCalls = [
+        {
+          id: 'call-1',
+          type: 'function',
+          function: {name: 'tool-1', arguments: '{}'},
+        },
+        {
+          id: 'call-2',
+          type: 'function',
+          function: {name: 'tool-2', arguments: '{}'},
+        },
+      ]
+
+      // First tool call waits to be resolved manually, tracks when it starts
+      mockCallTool
+        .mockImplementationOnce(() => {
+          executionOrder.push('tool-1-started')
+          return new Promise<{content: unknown[]}>(resolve => {
+            firstResolveFn = () => resolve({content: [{type: 'text', text: 'Result 1'}]})
+          })
+        })
+        .mockImplementationOnce(() => {
+          executionOrder.push('tool-2-started')
+          return Promise.resolve({content: [{type: 'text', text: 'Result 2'}]})
+        })
+
+      // Start execution but don't await yet
+      const resultPromise = executeToolCalls(mockClient, toolCalls)
+
+      // Allow the microtask queue to flush so the first tool call starts
+      await Promise.resolve()
+
+      // In sequential execution, tool-2 should NOT have started while tool-1 is still pending
+      expect(executionOrder).toEqual(['tool-1-started'])
+
+      // Now resolve the first tool call
+      firstResolveFn!()
+
+      // Await all results
+      const results = await resultPromise
+
+      // After full execution, both should have run in order
+      expect(executionOrder).toEqual(['tool-1-started', 'tool-2-started'])
+      expect(results).toHaveLength(2)
+      expect(results[0].tool_call_id).toBe('call-1')
+      expect(results[1].tool_call_id).toBe('call-2')
+    })
+
+    it('preserves output order matching input order', async () => {
+      const toolCalls = [
+        {
+          id: 'call-a',
+          type: 'function',
+          function: {name: 'tool-a', arguments: '{}'},
+        },
+        {
+          id: 'call-b',
+          type: 'function',
+          function: {name: 'tool-b', arguments: '{}'},
+        },
+        {
+          id: 'call-c',
+          type: 'function',
+          function: {name: 'tool-c', arguments: '{}'},
+        },
+      ]
+
+      mockCallTool
+        .mockResolvedValueOnce({content: [{type: 'text', text: 'A'}]})
+        .mockResolvedValueOnce({content: [{type: 'text', text: 'B'}]})
+        .mockResolvedValueOnce({content: [{type: 'text', text: 'C'}]})
+
+      const results = await executeToolCalls(mockClient, toolCalls)
+
+      expect(results).toHaveLength(3)
+      expect(results[0].tool_call_id).toBe('call-a')
+      expect(results[1].tool_call_id).toBe('call-b')
+      expect(results[2].tool_call_id).toBe('call-c')
+    })
   })
 })

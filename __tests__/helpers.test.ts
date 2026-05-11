@@ -203,18 +203,45 @@ password: pass123`
       expect(core.debug).toHaveBeenCalledWith('Custom header added: serviceName: my-service')
     })
 
-    it('masks additional sensitive header patterns', () => {
+    it('does not mask headers with cookie, session, credential, or bearer patterns', () => {
       const yamlInput = `Cookie: session_id=12345
 X-Bearer-Token: abcdef
 Session-ID: xyz789
 X-Credentials: user:pass`
 
+      const result = parseCustomHeaders(yamlInput)
+
+      expect(result).toEqual({
+        Cookie: 'session_id=12345',
+        'X-Bearer-Token': 'abcdef',
+        'Session-ID': 'xyz789',
+        'X-Credentials': 'user:pass',
+      })
+
+      // These patterns were removed from sensitivePatterns, so values should be logged in plain text
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: Cookie: session_id=12345')
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Bearer-Token: abcdef')
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: Session-ID: xyz789')
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Credentials: user:pass')
+
+      // None should have been masked
+      expect(core.debug).not.toHaveBeenCalledWith(expect.stringContaining('***MASKED***'))
+    })
+
+    it('still masks headers matching remaining sensitive patterns (key, token, secret, password, authorization)', () => {
+      const yamlInput = `API-Key: my-api-key
+X-Secret-Token: secret-value
+Authorization: Bearer token123
+X-Password: mypassword
+X-Token: abc123`
+
       parseCustomHeaders(yamlInput)
 
-      expect(core.debug).toHaveBeenCalledWith('Custom header added: Cookie: ***MASKED***')
-      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Bearer-Token: ***MASKED***')
-      expect(core.debug).toHaveBeenCalledWith('Custom header added: Session-ID: ***MASKED***')
-      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Credentials: ***MASKED***')
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: API-Key: ***MASKED***')
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Secret-Token: ***MASKED***')
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: Authorization: ***MASKED***')
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Password: ***MASKED***')
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Token: ***MASKED***')
     })
 
     it('validates header names and skips invalid ones', () => {
