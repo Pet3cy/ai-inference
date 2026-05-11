@@ -1,3 +1,4 @@
+import * as path from 'path'
 import {vi, describe, expect, it, beforeEach, type MockedFunction} from 'vitest'
 import * as core from '../__fixtures__/core.js'
 
@@ -237,8 +238,8 @@ describe('main.ts', () => {
   })
 
   it('properly integrates with loadContentFromFileOrInput', async () => {
-    const promptFile = 'prompt.txt'
-    const systemPromptFile = 'system-prompt.txt'
+    const promptFile = path.resolve(process.cwd(), 'prompt.txt')
+    const systemPromptFile = path.resolve(process.cwd(), 'system-prompt.txt')
     const promptContent = 'File-based prompt'
     const systemPromptContent = 'File-based system prompt'
 
@@ -275,7 +276,7 @@ describe('main.ts', () => {
   })
 
   it('handles non-existent prompt-file with an error', async () => {
-    const promptFile = 'non-existent-prompt.txt'
+    const promptFile = path.resolve(process.cwd(), 'non-existent-prompt.txt')
 
     mockFileContent({}, [promptFile])
 
