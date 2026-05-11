@@ -137,7 +137,7 @@ export function parseCustomHeaders(input: string): Record<string, string> {
  */
 function validateAndMaskHeaders(headers: Record<string, unknown>): Record<string, string> {
   const validHeaders: Record<string, string> = {}
-  const sensitivePatterns = ['key', 'token', 'secret', 'password', 'authorization']
+  const sensitivePatterns = ['key', 'token', 'secret', 'password', 'authorization', 'cookie', 'session']
 
   for (const [name, value] of Object.entries(headers)) {
     // Validate header name (RFC 7230: token = 1*tchar)
