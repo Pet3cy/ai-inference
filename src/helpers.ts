@@ -15,7 +15,7 @@ export function validatePath(inputPath: string): string {
   const resolvedPath = path.resolve(baseDir, inputPath)
   const relativePath = path.relative(baseDir, resolvedPath)
 
-  if (relativePath === '..' || relativePath.startsWith('..' + path.sep)) {
+  if (relativePath === '..' || relativePath.startsWith('..' + path.sep) || path.isAbsolute(relativePath)) {
     throw new Error(`Path traversal detected: ${inputPath}`)
   }
 
