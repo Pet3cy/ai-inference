@@ -203,7 +203,8 @@ export function validatePath(filePath: string): string {
   const resolvedPath = path.resolve(baseDir, filePath)
   const relativePath = path.relative(baseDir, resolvedPath)
 
-  if (relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+  const parts = relativePath.split(path.sep)
+  if (parts[0] === '..' || path.isAbsolute(relativePath)) {
     throw new Error(`Access denied: path resolves outside the allowed directory.`)
   }
   return resolvedPath
