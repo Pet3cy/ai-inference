@@ -63140,7 +63140,7 @@ function parseCustomHeaders(input) {
  */
 function validateAndMaskHeaders(headers) {
     const validHeaders = {};
-    const sensitivePatterns = ['key', 'token', 'secret', 'password', 'authorization'];
+    const sensitivePatterns = ['key', 'token', 'secret', 'password', 'authorization', 'cookie', 'session'];
     for (const [name, value] of Object.entries(headers)) {
         // Validate header name (RFC 7230: token = 1*tchar)
         // tchar = "!" / "#" / "$" / "%" / "&" / "'" / "*" / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~" / DIGIT / ALPHA
