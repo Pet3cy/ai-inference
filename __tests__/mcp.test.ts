@@ -267,32 +267,68 @@ describe('mcp.ts', () => {
 
     it('executes tool calls sequentially (in order, not in parallel)', async () => {
       const executionOrder: string[] = []
+      const flush = () => new Promise<void>(resolve => setImmediate(resolve))
+
+      let releaseFirst!: () => void
+      const firstGate = new Promise<void>(resolve => {
+        releaseFirst = resolve
+      })
+
+      let releaseSecond!: () => void
+      const secondGate = new Promise<void>(resolve => {
+        releaseSecond = resolve
+      })
+
       const toolCalls = [
         {id: 'call-1', type: 'function', function: {name: 'tool-1', arguments: '{}'}},
         {id: 'call-2', type: 'function', function: {name: 'tool-2', arguments: '{}'}},
         {id: 'call-3', type: 'function', function: {name: 'tool-3', arguments: '{}'}},
       ]
 
-      mockCallTool.mockImplementation(({name}: {name: string}) => {
-        return new Promise(resolve => {
-          // Simulate async work and record call order
-          setImmediate(() => {
-            executionOrder.push(name)
-            resolve({content: [{type: 'text', text: `Result from ${name}`}]})
-          })
+      mockCallTool
+        .mockImplementationOnce(async ({name}: {name: string}) => {
+          executionOrder.push(`${name}-start`)
+          await firstGate
+          executionOrder.push(`${name}-end`)
+          return {content: [{type: 'text', text: `Result from ${name}`}]}
         })
-      })
+        .mockImplementationOnce(async ({name}: {name: string}) => {
+          executionOrder.push(`${name}-start`)
+          await secondGate
+          executionOrder.push(`${name}-end`)
+          return {content: [{type: 'text', text: `Result from ${name}`}]}
+        })
+        .mockImplementationOnce(async ({name}: {name: string}) => {
+          executionOrder.push(`${name}-start`)
+          executionOrder.push(`${name}-end`)
+          return {content: [{type: 'text', text: `Result from ${name}`}]}
+        })
 
-      const results = await executeToolCalls(mockClient, toolCalls)
+      const resultsPromise = executeToolCalls(mockClient, toolCalls)
 
-      // Sequential execution means tool-2 only starts after tool-1 completes
-      expect(executionOrder).toEqual(['tool-1', 'tool-2', 'tool-3'])
+      await flush()
+      expect(mockCallTool).toHaveBeenCalledTimes(1)
+
+      releaseFirst()
+      await flush()
+      expect(mockCallTool).toHaveBeenCalledTimes(2)
+
+      releaseSecond()
+      const results = await resultsPromise
+
+      expect(executionOrder).toEqual([
+        'tool-1-start',
+        'tool-1-end',
+        'tool-2-start',
+        'tool-2-end',
+        'tool-3-start',
+        'tool-3-end',
+      ])
       expect(results).toHaveLength(3)
       expect(results[0].tool_call_id).toBe('call-1')
       expect(results[1].tool_call_id).toBe('call-2')
       expect(results[2].tool_call_id).toBe('call-3')
     })
-
     it('continues execution even if some tools fail', async () => {
       const toolCalls = [
         {
