@@ -1,4 +1,5 @@
 import {vi, describe, expect, it, beforeEach, type MockedFunction} from 'vitest'
+import * as path from 'path'
 import * as core from '../__fixtures__/core.js'
 
 // Default to throwing errors to catch unexpected calls
@@ -243,8 +244,8 @@ describe('main.ts', () => {
     const systemPromptContent = 'File-based system prompt'
 
     mockFileContent({
-      [process.cwd() + '/' + promptFile]: promptContent,
-      [process.cwd() + '/' + systemPromptFile]: systemPromptContent,
+      [path.resolve(process.cwd(), promptFile)]: promptContent,
+      [path.resolve(process.cwd(), systemPromptFile)]: systemPromptContent,
     })
 
     mockInputs({
@@ -277,7 +278,7 @@ describe('main.ts', () => {
   it('handles non-existent prompt-file with an error', async () => {
     const promptFile = 'non-existent-prompt.txt'
 
-    mockFileContent({}, [process.cwd() + '/' + promptFile])
+    mockFileContent({}, [path.resolve(process.cwd(), promptFile)])
 
     mockInputs({
       'prompt-file': promptFile,

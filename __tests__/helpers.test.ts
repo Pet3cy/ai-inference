@@ -411,8 +411,11 @@ header2: |
     })
 
     it('masks cookie/session header values in debug logs', () => {
-      // Use header names that match ONLY the removed patterns (not any of the remaining ones:
-      // key, token, secret, password, authorization)
+      // Cookie and session headers commonly carry authentication credentials,
+      // so their values must be masked in debug logs. The "credential" and
+      // "bearer" substrings are not in sensitivePatterns, so headers whose
+      // names contain those substrings (and nothing else sensitive) are
+      // logged in the clear.
       const yamlInput = `Cookie: session_id=12345
 X-Session-Data: xyz789
 X-Credentials: user:pass
@@ -427,9 +430,10 @@ X-Bearer: only-bearer-no-token`
         'X-Bearer': 'only-bearer-no-token',
       })
 
+      // cookie/session match sensitivePatterns → masked
       expect(core.debug).toHaveBeenCalledWith('Custom header added: Cookie: ***MASKED***')
       expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Session-Data: ***MASKED***')
-      // Keep these unmasked only if policy intentionally allows them:
+      // credential/bearer are not in sensitivePatterns → logged unmasked
       expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Credentials: user:pass')
       expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Bearer: only-bearer-no-token')
     })

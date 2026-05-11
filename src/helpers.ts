@@ -2,7 +2,7 @@ import * as core from '@actions/core'
 import * as fs from 'fs'
 import * as yaml from 'js-yaml'
 import * as path from 'path'
-import {PromptConfig} from './prompt.js'
+import type {PromptConfig} from './prompt.js'
 import {InferenceRequest} from './inference.js'
 
 /**
