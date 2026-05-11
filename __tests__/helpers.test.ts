@@ -203,20 +203,6 @@ password: pass123`
       expect(core.debug).toHaveBeenCalledWith('Custom header added: serviceName: my-service')
     })
 
-    it('masks additional sensitive header patterns', () => {
-      const yamlInput = `Cookie: session_id=12345
-X-Bearer-Token: abcdef
-Session-ID: xyz789
-X-Credentials: user:pass`
-
-      parseCustomHeaders(yamlInput)
-
-      expect(core.debug).toHaveBeenCalledWith('Custom header added: Cookie: ***MASKED***')
-      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Bearer-Token: ***MASKED***')
-      expect(core.debug).toHaveBeenCalledWith('Custom header added: Session-ID: ***MASKED***')
-      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Credentials: ***MASKED***')
-    })
-
     it('validates header names and skips invalid ones', () => {
       const yamlInput = `valid-header: value1
 invalid header: value2
@@ -381,6 +367,176 @@ systemID: terraform-ci`
       // Only the subscription key should be masked
       expect(core.debug).toHaveBeenCalledWith('Custom header added: Ocp-Apim-Subscription-Key: ***MASKED***')
       expect(core.debug).toHaveBeenCalledWith('Custom header added: serviceName: terraform-plan-workflow')
+    })
+  })
+})
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      // key IS still sensitive, so X-Api-Key should be masked
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Api-Key: ***MASKED***')
+    })
+
+    it('does not mask header with bearer substring when it does not match remaining patterns', () => {
+      // 'bearer' was removed from sensitivePatterns; "X-Bearer-Auth" has no remaining sensitive pattern
+      const jsonInput = '{"X-Bearer-Auth": "myvalue123"}'
+
+      const result = parseCustomHeaders(jsonInput)
+
+      expect(result).toEqual({'X-Bearer-Auth': 'myvalue123'})
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Bearer-Auth: myvalue123')
+      expect(core.debug).not.toHaveBeenCalledWith(expect.stringContaining('***MASKED***'))
+    })
+
+    it('does not mask header with session substring when it does not match remaining patterns', () => {
+      // 'session' was removed; "X-Session-ID" does not contain key/token/secret/password/authorization
+      const jsonInput = '{"X-Session-ID": "sess_abc123"}'
+
+      const result = parseCustomHeaders(jsonInput)
+
+      expect(result).toEqual({'X-Session-ID': 'sess_abc123'})
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Session-ID: sess_abc123')
+      expect(core.debug).not.toHaveBeenCalledWith(expect.stringContaining('***MASKED***'))
+    })
+
+    it('does not mask header with cookie substring when it does not match remaining patterns', () => {
+      // 'cookie' was removed; "X-Cookie-Store" has no remaining sensitive pattern
+      const yamlInput = 'X-Cookie-Store: abc'
+
+      const result = parseCustomHeaders(yamlInput)
+
+      expect(result).toEqual({'X-Cookie-Store': 'abc'})
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Cookie-Store: abc')
+      expect(core.debug).not.toHaveBeenCalledWith(expect.stringContaining('***MASKED***'))
+    })
+
+    it('masks a header that contains both a removed pattern and a remaining pattern', () => {
+      // "Session-Secret" - "session" removed but "secret" still present, so it MUST be masked
+      const yamlInput = 'Session-Secret: topsecret'
+
+      const result = parseCustomHeaders(yamlInput)
+
+      expect(result).toEqual({'Session-Secret': 'topsecret'})
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: Session-Secret: ***MASKED***')
+    })
+
+    it('masks header with "key" substring in a case-insensitive manner', () => {
+      // Case-insensitive: "API-KEY" and "apikey" should both be masked
+      const jsonInput = '{"API-KEY": "mykey", "apikey": "another"}'
+
+      const result = parseCustomHeaders(jsonInput)
+
+      expect(result).toEqual({'API-KEY': 'mykey', apikey: 'another'})
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: API-KEY: ***MASKED***')
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: apikey: ***MASKED***')
+    })
+
+    it('does not mask COOKIE or SESSION in uppercase (case-insensitive removal)', () => {
+      // Confirm removal is case-insensitive: COOKIE and SESSION should not be masked
+      const jsonInput = '{"COOKIE": "data", "SESSION": "sid", "TOKEN": "tok"}'
+
+      const result = parseCustomHeaders(jsonInput)
+
+      expect(result).toEqual({COOKIE: 'data', SESSION: 'sid', TOKEN: 'tok'})
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: COOKIE: data')
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: SESSION: sid')
+      // TOKEN contains 'token', so it should be masked
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: TOKEN: ***MASKED***')
+    })
+
+    it('masks exactly the five remaining sensitive patterns and nothing else', () => {
+      // Verify the exact boundary: five patterns are key, token, secret, password, authorization
+      // Each should be masked; unrelated headers should not be
+      const jsonInput = JSON.stringify({
+        'X-Key': 'k',
+        'X-Token': 't',
+        'X-Secret': 's',
+        'X-Password': 'p',
+        'X-Authorization': 'a',
+        'X-Safe': 'safe',
+        'X-Bearer': 'b',
+        'X-Cookie': 'c',
+        'X-Session': 'se',
+        'X-Credential': 'cr',
+      })
+
+      const result = parseCustomHeaders(jsonInput)
+
+      expect(result['X-Key']).toBe('k')
+      expect(result['X-Token']).toBe('t')
+      expect(result['X-Secret']).toBe('s')
+      expect(result['X-Password']).toBe('p')
+      expect(result['X-Authorization']).toBe('a')
+
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Key: ***MASKED***')
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Token: ***MASKED***')
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Secret: ***MASKED***')
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Password: ***MASKED***')
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Authorization: ***MASKED***')
+
+      // Removed patterns — should NOT be masked
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Safe: safe')
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Bearer: b')
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Cookie: c')
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Session: se')
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Credential: cr')
     })
   })
 })

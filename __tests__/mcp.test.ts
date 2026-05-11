@@ -293,3 +293,136 @@ describe('mcp.ts', () => {
     })
   })
 })
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      expect(results[0].tool_call_id).toBe('call-1')
+      expect(results[1].tool_call_id).toBe('call-2')
+    })
+
+    it('returns a single-element array for a single tool call', async () => {
+      const toolCalls = [{id: 'only-call', type: 'function', function: {name: 'solo-tool', arguments: '{}'}}]
+
+      mockCallTool.mockResolvedValue({content: [{type: 'text', text: 'Solo result'}]})
+
+      const results = await executeToolCalls(mockClient, toolCalls)
+
+      expect(results).toHaveLength(1)
+      expect(results[0].tool_call_id).toBe('only-call')
+      expect(results[0].name).toBe('solo-tool')
+      expect(results[0].role).toBe('tool')
+      expect(mockCallTool).toHaveBeenCalledTimes(1)
+    })
+
+    it('accumulates all results including failures when the third call fails', async () => {
+      const toolCalls = [
+        {id: 'call-x', type: 'function', function: {name: 'tool-x', arguments: '{}'}},
+        {id: 'call-y', type: 'function', function: {name: 'tool-y', arguments: '{}'}},
+        {id: 'call-z', type: 'function', function: {name: 'tool-z', arguments: '{}'}},
+      ]
+
+      mockCallTool
+        .mockResolvedValueOnce({content: [{type: 'text', text: 'Result X'}]})
+        .mockResolvedValueOnce({content: [{type: 'text', text: 'Result Y'}]})
+        .mockRejectedValueOnce(new Error('Tool Z failed'))
+
+      const results = await executeToolCalls(mockClient, toolCalls)
+
+      // All three results are present — failures are not dropped
+      expect(results).toHaveLength(3)
+      expect(results[0].tool_call_id).toBe('call-x')
+      expect(results[0].content).toContain('Result X')
+      expect(results[1].tool_call_id).toBe('call-y')
+      expect(results[1].content).toContain('Result Y')
+      expect(results[2].tool_call_id).toBe('call-z')
+      expect(results[2].content).toContain('Error:')
+      expect(mockCallTool).toHaveBeenCalledTimes(3)
+    })
+
+    it('does not call any tool when the tool calls array has zero elements', async () => {
+      const results = await executeToolCalls(mockClient, [])
+
+      expect(results).toEqual([])
+      expect(mockCallTool).not.toHaveBeenCalled()
+    })
+
+    it('preserves tool_call_id, role, and name fields in each result', async () => {
+      const toolCalls = [
+        {id: 'id-alpha', type: 'function', function: {name: 'alpha-tool', arguments: '{"x": 1}'}},
+        {id: 'id-beta', type: 'function', function: {name: 'beta-tool', arguments: '{"y": 2}'}},
+      ]
+
+      mockCallTool
+        .mockResolvedValueOnce({content: [{type: 'text', text: 'Alpha output'}]})
+        .mockResolvedValueOnce({content: [{type: 'text', text: 'Beta output'}]})
+
+      const results = await executeToolCalls(mockClient, toolCalls)
+
+      expect(results[0]).toMatchObject({tool_call_id: 'id-alpha', role: 'tool', name: 'alpha-tool'})
+      expect(results[1]).toMatchObject({tool_call_id: 'id-beta', role: 'tool', name: 'beta-tool'})
+    })
+  })
+})
