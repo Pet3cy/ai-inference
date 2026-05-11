@@ -1,5 +1,6 @@
 import {vi, it, expect, beforeEach, describe} from 'vitest'
 import * as core from '../__fixtures__/core.js'
+import * as path from 'path'
 
 const mockExistsSync = vi.fn()
 const mockReadFileSync = vi.fn()
@@ -11,16 +12,65 @@ vi.mock('fs', () => ({
 
 vi.mock('@actions/core', () => core)
 
-const {loadContentFromFileOrInput, parseCustomHeaders} = await import('../src/helpers.js')
+const {loadContentFromFileOrInput, parseCustomHeaders, validatePath} = await import('../src/helpers.js')
 
 describe('helpers.ts', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
+  describe('validatePath', () => {
+    it('resolves a relative path within cwd to an absolute path', () => {
+      const result = validatePath('some/relative/path.txt')
+      expect(result).toBe(path.resolve(process.cwd(), 'some/relative/path.txt'))
+    })
+
+    it('resolves a simple filename to an absolute path within cwd', () => {
+      const result = validatePath('file.txt')
+      expect(result).toBe(path.resolve(process.cwd(), 'file.txt'))
+    })
+
+    it('allows path with internal .. that resolves within cwd', () => {
+      const result = validatePath('a/../b/file.txt')
+      expect(result).toBe(path.resolve(process.cwd(), 'b/file.txt'))
+    })
+
+    it('allows an absolute path that is within cwd', () => {
+      const inCwdPath = path.join(process.cwd(), 'subdir', 'file.txt')
+      const result = validatePath(inCwdPath)
+      expect(result).toBe(inCwdPath)
+    })
+
+    it('throws for a path that traverses above cwd using ../', () => {
+      expect(() => validatePath('../outside.txt')).toThrow('Path traversal detected')
+    })
+
+    it('throws for a deeply nested traversal path', () => {
+      expect(() => validatePath('a/../../outside.txt')).toThrow('Path traversal detected')
+    })
+
+    it('throws for a pure .. path', () => {
+      expect(() => validatePath('..')).toThrow('Path traversal detected')
+    })
+
+    it('throws for an absolute path outside cwd', () => {
+      expect(() => validatePath('/etc/passwd')).toThrow('Path traversal detected')
+    })
+
+    it('throws for path traversal with encoded or mixed separators', () => {
+      // Multiple levels up
+      expect(() => validatePath('../../etc/passwd')).toThrow('Path traversal detected')
+    })
+
+    it('allows current directory reference (.)', () => {
+      const result = validatePath('.')
+      expect(result).toBe(path.resolve(process.cwd(), '.'))
+    })
+  })
+
   describe('loadContentFromFileOrInput', () => {
     it('loads content from file when file path is provided', () => {
-      const filePath = '/path/to/file.txt'
+      const filePath = 'path/to/file.txt'
       const fileContent = 'File content here'
 
       core.getInput.mockImplementation((name: string) => {
@@ -35,13 +85,13 @@ describe('helpers.ts', () => {
       const result = loadContentFromFileOrInput('file-input', 'content-input')
 
       expect(core.getInput).toHaveBeenCalledWith('file-input')
-      expect(mockExistsSync).toHaveBeenCalledWith(filePath)
-      expect(mockReadFileSync).toHaveBeenCalledWith(filePath, 'utf-8')
+      expect(mockExistsSync).toHaveBeenCalledWith(expect.stringContaining(filePath))
+      expect(mockReadFileSync).toHaveBeenCalledWith(expect.stringContaining(filePath), 'utf-8')
       expect(result).toBe(fileContent)
     })
 
     it('throws error when file path is provided but file does not exist', () => {
-      const filePath = '/path/to/nonexistent.txt'
+      const filePath = 'path/to/nonexistent.txt'
 
       core.getInput.mockImplementation((name: string) => {
         if (name === 'file-input') return filePath
@@ -53,9 +103,9 @@ describe('helpers.ts', () => {
 
       expect(() => {
         loadContentFromFileOrInput('file-input', 'content-input')
-      }).toThrow('File for file-input was not found: /path/to/nonexistent.txt')
+      }).toThrow(/File for file-input was not found/)
 
-      expect(mockExistsSync).toHaveBeenCalledWith(filePath)
+      expect(mockExistsSync).toHaveBeenCalledWith(expect.stringContaining(filePath))
       expect(mockReadFileSync).not.toHaveBeenCalled()
     })
 
@@ -78,7 +128,7 @@ describe('helpers.ts', () => {
     })
 
     it('prefers file path over content input when both are provided', () => {
-      const filePath = '/path/to/file.txt'
+      const filePath = 'path/to/file.txt'
       const fileContent = 'File content'
       const contentInput = 'Direct content input'
 
@@ -94,8 +144,8 @@ describe('helpers.ts', () => {
       const result = loadContentFromFileOrInput('file-input', 'content-input')
 
       expect(result).toBe(fileContent)
-      expect(mockExistsSync).toHaveBeenCalledWith(filePath)
-      expect(mockReadFileSync).toHaveBeenCalledWith(filePath, 'utf-8')
+      expect(mockExistsSync).toHaveBeenCalledWith(expect.stringContaining(filePath))
+      expect(mockReadFileSync).toHaveBeenCalledWith(expect.stringContaining(filePath), 'utf-8')
     })
 
     it('uses default value when neither file nor content is provided', () => {
@@ -116,6 +166,21 @@ describe('helpers.ts', () => {
       expect(() => {
         loadContentFromFileOrInput('file-input', 'content-input')
       }).toThrow('Neither file-input nor content-input was set')
+
+      expect(mockExistsSync).not.toHaveBeenCalled()
+      expect(mockReadFileSync).not.toHaveBeenCalled()
+    })
+
+    it('throws when file path attempts directory traversal', () => {
+      core.getInput.mockImplementation((name: string) => {
+        if (name === 'file-input') return '../../../etc/passwd'
+        if (name === 'content-input') return ''
+        return ''
+      })
+
+      expect(() => {
+        loadContentFromFileOrInput('file-input', 'content-input')
+      }).toThrow('Path traversal detected')
 
       expect(mockExistsSync).not.toHaveBeenCalled()
       expect(mockReadFileSync).not.toHaveBeenCalled()
@@ -343,6 +408,34 @@ header2: |
       expect(core.warning).toHaveBeenCalledWith(
         'Skipping header "header2" because its value contains newline characters, which are not allowed in HTTP header values.',
       )
+    })
+
+    it('masks cookie/session header values in debug logs', () => {
+      // Cookie and session headers commonly carry authentication credentials,
+      // so their values must be masked in debug logs. The "credential" and
+      // "bearer" substrings are not in sensitivePatterns, so headers whose
+      // names contain those substrings (and nothing else sensitive) are
+      // logged in the clear.
+      const yamlInput = `Cookie: session_id=12345
+X-Session-Data: xyz789
+X-Credentials: user:pass
+X-Bearer: only-bearer-no-token`
+
+      const result = parseCustomHeaders(yamlInput)
+
+      expect(result).toEqual({
+        Cookie: 'session_id=12345',
+        'X-Session-Data': 'xyz789',
+        'X-Credentials': 'user:pass',
+        'X-Bearer': 'only-bearer-no-token',
+      })
+
+      // cookie/session match sensitivePatterns → masked
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: Cookie: ***MASKED***')
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Session-Data: ***MASKED***')
+      // credential/bearer are not in sensitivePatterns → logged unmasked
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Credentials: user:pass')
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Bearer: only-bearer-no-token')
     })
 
     it('handles complex real-world Azure APIM example', () => {
