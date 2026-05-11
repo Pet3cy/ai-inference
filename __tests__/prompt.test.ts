@@ -122,6 +122,14 @@ describe('prompt.ts', () => {
     it('should throw error for non-existent file', () => {
       expect(() => loadPromptFile('non-existent.prompt.yml')).toThrow('Prompt file not found')
     })
+
+    it('should throw on path traversal attempt', () => {
+      expect(() => loadPromptFile('../etc/passwd')).toThrow('Path traversal detected')
+    })
+
+    it('should throw on deep path traversal attempt', () => {
+      expect(() => loadPromptFile('../../etc/shadow')).toThrow('Path traversal detected')
+    })
   })
 
   describe('parseFileTemplateVariables', () => {
@@ -146,6 +154,19 @@ describe('prompt.ts', () => {
       expect(() => parseFileTemplateVariables('x: { nested: "object" }')).toThrow(
         "File template variable 'x' must be a string file path",
       )
+    })
+
+    it('throws on path traversal in file variable value', () => {
+      expect(() => parseFileTemplateVariables('x: ../etc/passwd')).toThrow('Path traversal detected')
+    })
+
+    it('throws on deep path traversal in file variable value', () => {
+      expect(() => parseFileTemplateVariables('x: ../../sensitive/file.txt')).toThrow('Path traversal detected')
+    })
+
+    it('returns empty object for empty input', () => {
+      expect(parseFileTemplateVariables('')).toEqual({})
+      expect(parseFileTemplateVariables('   ')).toEqual({})
     })
   })
 })

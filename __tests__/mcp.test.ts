@@ -291,5 +291,65 @@ describe('mcp.ts', () => {
       expect(results[0].content).toContain('Result 1')
       expect(results[1].content).toContain('Error:')
     })
+
+    it('executes tool calls sequentially preserving order', async () => {
+      const executionOrder: string[] = []
+
+      const toolCalls = [
+        {id: 'call-a', type: 'function', function: {name: 'tool-a', arguments: '{}'}},
+        {id: 'call-b', type: 'function', function: {name: 'tool-b', arguments: '{}'}},
+        {id: 'call-c', type: 'function', function: {name: 'tool-c', arguments: '{}'}},
+      ]
+
+      mockCallTool.mockImplementation(({name}: {name: string}) => {
+        executionOrder.push(name)
+        return Promise.resolve({content: [{type: 'text', text: `Result for ${name}`}]})
+      })
+
+      const results = await executeToolCalls(mockClient, toolCalls)
+
+      expect(results).toHaveLength(3)
+      expect(results[0].tool_call_id).toBe('call-a')
+      expect(results[1].tool_call_id).toBe('call-b')
+      expect(results[2].tool_call_id).toBe('call-c')
+      expect(executionOrder).toEqual(['tool-a', 'tool-b', 'tool-c'])
+    })
+
+    it('does not start next tool call until previous one resolves', async () => {
+      const resolutionOrder: string[] = []
+      let resolveFirst!: () => void
+
+      const toolCalls = [
+        {id: 'call-slow', type: 'function', function: {name: 'slow-tool', arguments: '{}'}},
+        {id: 'call-fast', type: 'function', function: {name: 'fast-tool', arguments: '{}'}},
+      ]
+
+      mockCallTool
+        .mockImplementationOnce(() => {
+          return new Promise<{content: unknown[]}>(resolve => {
+            resolveFirst = () => {
+              resolutionOrder.push('slow-tool')
+              resolve({content: [{type: 'text', text: 'Slow result'}]})
+            }
+          })
+        })
+        .mockImplementationOnce(() => {
+          resolutionOrder.push('fast-tool')
+          return Promise.resolve({content: [{type: 'text', text: 'Fast result'}]})
+        })
+
+      const promise = executeToolCalls(mockClient, toolCalls)
+
+      // fast-tool should NOT have been called yet because slow-tool hasn't resolved
+      expect(resolutionOrder).toEqual([])
+
+      // Resolve slow-tool - fast-tool should run after
+      resolveFirst()
+      const results = await promise
+
+      expect(resolutionOrder).toEqual(['slow-tool', 'fast-tool'])
+      expect(results[0].tool_call_id).toBe('call-slow')
+      expect(results[1].tool_call_id).toBe('call-fast')
+    })
   })
 })

@@ -1,4 +1,5 @@
 import {vi, it, expect, beforeEach, describe} from 'vitest'
+import * as path from 'path'
 import * as core from '../__fixtures__/core.js'
 
 const mockExistsSync = vi.fn()
@@ -11,7 +12,7 @@ vi.mock('fs', () => ({
 
 vi.mock('@actions/core', () => core)
 
-const {loadContentFromFileOrInput, parseCustomHeaders} = await import('../src/helpers.js')
+const {loadContentFromFileOrInput, parseCustomHeaders, validatePath} = await import('../src/helpers.js')
 
 describe('helpers.ts', () => {
   beforeEach(() => {
@@ -131,6 +132,58 @@ describe('helpers.ts', () => {
 
       expect(result).toBe(defaultValue)
     })
+
+    it('throws on path traversal attempt in file path', () => {
+      core.getInput.mockImplementation((name: string) => {
+        if (name === 'file-input') return '../etc/passwd'
+        return ''
+      })
+
+      expect(() => {
+        loadContentFromFileOrInput('file-input', 'content-input')
+      }).toThrow('Path traversal detected')
+
+      expect(mockExistsSync).not.toHaveBeenCalled()
+      expect(mockReadFileSync).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('validatePath', () => {
+    it('returns resolved absolute path for a valid relative path', () => {
+      const result = validatePath('some/relative/file.txt')
+      const expected = path.resolve(process.cwd(), 'some/relative/file.txt')
+      expect(result).toBe(expected)
+    })
+
+    it('returns resolved absolute path for a simple file name', () => {
+      const result = validatePath('file.txt')
+      expect(result).toBe(path.resolve(process.cwd(), 'file.txt'))
+    })
+
+    it('throws on directory traversal via ../', () => {
+      expect(() => validatePath('../etc/passwd')).toThrow('Path traversal detected')
+    })
+
+    it('throws on deep directory traversal', () => {
+      expect(() => validatePath('../../etc/shadow')).toThrow('Path traversal detected')
+    })
+
+    it('throws on traversal embedded in path', () => {
+      expect(() => validatePath('subdir/../../etc/passwd')).toThrow('Path traversal detected')
+    })
+
+    it('throws on pure .. path', () => {
+      expect(() => validatePath('..')).toThrow('Path traversal detected')
+    })
+
+    it('includes the offending input path in the error message', () => {
+      expect(() => validatePath('../secret')).toThrow('../secret')
+    })
+
+    it('allows paths that stay within cwd', () => {
+      expect(() => validatePath('a/b/c.txt')).not.toThrow()
+      expect(() => validatePath('prompts/my.prompt.yml')).not.toThrow()
+    })
   })
 
   describe('parseCustomHeaders', () => {
@@ -201,6 +254,29 @@ password: pass123`
 
       // Non-sensitive headers should not be masked
       expect(core.debug).toHaveBeenCalledWith('Custom header added: serviceName: my-service')
+    })
+
+    it('does not mask headers that were removed from sensitivePatterns (bearer, cookie, session, credential)', () => {
+      const yamlInput = `Cookie: session_id=12345
+X-Bearer-Token: abcdef
+Session-ID: xyz789
+X-Credentials: user:pass`
+
+      const result = parseCustomHeaders(yamlInput)
+
+      expect(result).toEqual({
+        Cookie: 'session_id=12345',
+        'X-Bearer-Token': 'abcdef',
+        'Session-ID': 'xyz789',
+        'X-Credentials': 'user:pass',
+      })
+
+      // 'token' is still in sensitivePatterns, so X-Bearer-Token should still be masked
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Bearer-Token: ***MASKED***')
+      // These should NOT be masked since 'bearer', 'cookie', 'session', 'credential' were removed
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: Cookie: session_id=12345')
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: Session-ID: xyz789')
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Credentials: user:pass')
     })
 
     it('validates header names and skips invalid ones', () => {
