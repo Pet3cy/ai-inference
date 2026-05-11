@@ -203,6 +203,96 @@ password: pass123`
       expect(core.debug).toHaveBeenCalledWith('Custom header added: serviceName: my-service')
     })
 
+    it('does not mask cookie headers (removed from sensitive patterns)', () => {
+      const yamlInput = `Cookie: session_id=12345
+X-Set-Cookie: value=xyz`
+
+      const result = parseCustomHeaders(yamlInput)
+
+      expect(result).toEqual({
+        Cookie: 'session_id=12345',
+        'X-Set-Cookie': 'value=xyz',
+      })
+
+      // Cookie-related headers should NOT be masked after PR change
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: Cookie: session_id=12345')
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Set-Cookie: value=xyz')
+      expect(core.debug).not.toHaveBeenCalledWith('Custom header added: Cookie: ***MASKED***')
+      expect(core.debug).not.toHaveBeenCalledWith('Custom header added: X-Set-Cookie: ***MASKED***')
+    })
+
+    it('does not mask bearer headers (removed from sensitive patterns)', () => {
+      // Use header names with 'bearer' but NOT containing any remaining sensitive patterns
+      // (key, token, secret, password, authorization)
+      const yamlInput = `X-Bearer-Auth: abcdef
+bearer-header: some-value`
+
+      const result = parseCustomHeaders(yamlInput)
+
+      expect(result).toEqual({
+        'X-Bearer-Auth': 'abcdef',
+        'bearer-header': 'some-value',
+      })
+
+      // Bearer-related headers should NOT be masked after PR change
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Bearer-Auth: abcdef')
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: bearer-header: some-value')
+      expect(core.debug).not.toHaveBeenCalledWith('Custom header added: X-Bearer-Auth: ***MASKED***')
+      expect(core.debug).not.toHaveBeenCalledWith('Custom header added: bearer-header: ***MASKED***')
+    })
+
+    it('does not mask session headers (removed from sensitive patterns)', () => {
+      const yamlInput = `Session-ID: xyz789
+X-Session: abc`
+
+      const result = parseCustomHeaders(yamlInput)
+
+      expect(result).toEqual({
+        'Session-ID': 'xyz789',
+        'X-Session': 'abc',
+      })
+
+      // Session-related headers should NOT be masked after PR change
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: Session-ID: xyz789')
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Session: abc')
+      expect(core.debug).not.toHaveBeenCalledWith('Custom header added: Session-ID: ***MASKED***')
+      expect(core.debug).not.toHaveBeenCalledWith('Custom header added: X-Session: ***MASKED***')
+    })
+
+    it('does not mask credential headers (removed from sensitive patterns)', () => {
+      const yamlInput = `X-Credentials: user:pass
+credential-header: value`
+
+      const result = parseCustomHeaders(yamlInput)
+
+      expect(result).toEqual({
+        'X-Credentials': 'user:pass',
+        'credential-header': 'value',
+      })
+
+      // Credential-related headers should NOT be masked after PR change
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Credentials: user:pass')
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: credential-header: value')
+      expect(core.debug).not.toHaveBeenCalledWith('Custom header added: X-Credentials: ***MASKED***')
+      expect(core.debug).not.toHaveBeenCalledWith('Custom header added: credential-header: ***MASKED***')
+    })
+
+    it('still masks retained sensitive patterns (key, token, secret, password, authorization)', () => {
+      const yamlInput = `X-Api-Key: key-value
+X-Token: token-value
+X-Secret: secret-value
+X-Password: password-value
+Authorization: auth-value`
+
+      parseCustomHeaders(yamlInput)
+
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Api-Key: ***MASKED***')
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Token: ***MASKED***')
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Secret: ***MASKED***')
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Password: ***MASKED***')
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: Authorization: ***MASKED***')
+    })
+
     it('validates header names and skips invalid ones', () => {
       const yamlInput = `valid-header: value1
 invalid header: value2

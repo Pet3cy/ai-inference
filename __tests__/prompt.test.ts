@@ -158,5 +158,49 @@ describe('prompt.ts', () => {
         "File template variable 'x' must be a string file path",
       )
     })
+
+    it('returns empty object for whitespace-only input', () => {
+      expect(parseFileTemplateVariables('   ')).toEqual({})
+      expect(parseFileTemplateVariables('\t\n')).toEqual({})
+    })
+
+    it('wraps errors with "Failed to parse file template variables:" prefix', () => {
+      expect(() => parseFileTemplateVariables('x: ./does-not-exist.txt')).toThrow(
+        'Failed to parse file template variables:',
+      )
+    })
+
+    it('wraps non-string value errors with the outer error prefix', () => {
+      expect(() => parseFileTemplateVariables('x: 999')).toThrow(
+        "Failed to parse file template variables: File template variable 'x' must be a string file path",
+      )
+    })
+
+    it('reads multiple file variables correctly', () => {
+      const configPath1 = path.join(__dirname, '../__fixtures__/prompts/simple.prompt.yml')
+      const configPath2 = path.join(__dirname, '../__fixtures__/prompts/json-schema.prompt.yml')
+      const data = parseFileTemplateVariables(`file1: ${configPath1}\nfile2: ${configPath2}`)
+      expect(data.file1).toContain('messages:')
+      expect(data.file2).toContain('responseFormat:')
+    })
+
+    it('wraps missing file errors with the outer error prefix', () => {
+      expect(() => parseFileTemplateVariables('x: /nonexistent/path/file.txt')).toThrow(
+        "Failed to parse file template variables: File for template variable 'x' was not found:",
+      )
+    })
+
+    it('is synchronous (returns TemplateVariables directly, not a Promise)', () => {
+      const result = parseFileTemplateVariables('')
+      // A Promise would have a .then method; a plain object should not
+      expect(result).not.toHaveProperty('then')
+      expect(typeof result).toBe('object')
+    })
+
+    it('throws on YAML that is not an object (e.g. bare string)', () => {
+      expect(() => parseFileTemplateVariables('- item1\n- item2')).toThrow(
+        'Failed to parse file template variables:',
+      )
+    })
   })
 })
