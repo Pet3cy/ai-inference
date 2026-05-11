@@ -6,9 +6,11 @@ import {PromptConfig} from './prompt.js'
 import {InferenceRequest} from './inference.js'
 
 /**
- * Validates a path to prevent directory traversal attacks
- * @param inputPath - The path to validate
- * @returns The resolved absolute path if valid
+ * Resolve and validate a filesystem path against the current working directory to prevent directory traversal.
+ *
+ * @param inputPath - The input path (relative or absolute) to validate and resolve
+ * @returns The resolved absolute path within the current working directory
+ * @throws Error if the resolved path is outside the current working directory
  */
 export function validatePath(inputPath: string): string {
   const baseDir = process.cwd()
@@ -23,11 +25,13 @@ export function validatePath(inputPath: string): string {
 }
 
 /**
- * Helper function to load content from a file or use fallback input
- * @param filePathInput - Input name for the file path
- * @param contentInput - Input name for the direct content
- * @param defaultValue - Default value to use if neither file nor content is provided
- * @returns The loaded content
+ * Load content from a file specified by a workflow input or from a direct input fallback.
+ *
+ * @param filePathInput - The name of the workflow input that should contain a file path to read.
+ * @param contentInput - The name of the workflow input that should contain direct content.
+ * @param defaultValue - Value to return if neither file nor direct content is provided.
+ * @returns The loaded content: file contents if `filePathInput` is set, otherwise the `contentInput` value, otherwise `defaultValue`.
+ * @throws Error if `filePathInput` is set but the resolved path is outside the workspace or the file does not exist, or if neither input nor `defaultValue` is provided.
  */
 export function loadContentFromFileOrInput(filePathInput: string, contentInput: string, defaultValue?: string): string {
   const filePath = core.getInput(filePathInput)

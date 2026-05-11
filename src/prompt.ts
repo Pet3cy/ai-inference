@@ -47,8 +47,13 @@ export function parseTemplateVariables(input: string): TemplateVariables {
 }
 
 /**
- * Parse file-based template variables from YAML input string. The YAML should map
- * variable names to file paths. File contents are read and returned as variables.
+ * Parse a YAML mapping of variable names to file paths and return a map of those variables to each file's contents.
+ *
+ * @param fileInput - YAML string that maps variable names to file paths; an empty or whitespace-only string returns an empty object
+ * @returns A mapping from variable name to the UTF-8 contents of the referenced file
+ * @throws If YAML parsing fails or the parsed value is not an object
+ * @throws If any mapped value is not a string (expected file path)
+ * @throws If a referenced file path does not resolve to an existing file
  */
 export function parseFileTemplateVariables(fileInput: string): TemplateVariables {
   if (!fileInput.trim()) {
@@ -83,7 +88,13 @@ export function parseFileTemplateVariables(fileInput: string): TemplateVariables
 }
 
 /**
-
+ * Substitute {{variable}} placeholders in a string with provided variable values.
+ *
+ * Replaces every `{{name}}` occurrence with the corresponding value from `variables`. If a placeholder has no matching key, a warning is emitted via `core.warning` and the original placeholder is left unchanged.
+ *
+ * @param text - The string containing `{{...}}` placeholders to replace.
+ * @param variables - Mapping of variable names to replacement strings.
+ * @returns The input string with matching placeholders replaced by their values.
  */
 export function replaceTemplateVariables(text: string, variables: TemplateVariables): string {
   return text.replace(/\{\{([\w.-]+)\}\}/g, (match, variableName) => {
@@ -96,7 +107,12 @@ export function replaceTemplateVariables(text: string, variables: TemplateVariab
 }
 
 /**
- * Load and parse a prompt YAML file with template variable substitution
+ * Load and parse a prompt YAML file and substitute template variables into each message's content.
+ *
+ * @param filePath - Path to the prompt YAML file to load
+ * @param templateVariables - Mapping of template variable names to replacement strings used when expanding message content
+ * @returns The parsed PromptConfig with `messages` updated to include substituted content
+ * @throws Error if the file does not exist, if the YAML is invalid, or if the config/messages are malformed
  */
 export function loadPromptFile(filePath: string, templateVariables: TemplateVariables = {}): PromptConfig {
   const safePath = validatePath(filePath)
