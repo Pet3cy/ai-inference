@@ -238,13 +238,15 @@ describe('main.ts', () => {
 
   it('properly integrates with loadContentFromFileOrInput', async () => {
     const promptFile = 'prompt.txt'
+    const resolvedPromptFile = '/app/prompt.txt'
     const systemPromptFile = 'system-prompt.txt'
+    const resolvedSystemPromptFile = '/app/system-prompt.txt'
     const promptContent = 'File-based prompt'
     const systemPromptContent = 'File-based system prompt'
 
     mockFileContent({
-      [promptFile]: promptContent,
-      [systemPromptFile]: systemPromptContent,
+      [resolvedPromptFile]: promptContent,
+      [resolvedSystemPromptFile]: systemPromptContent,
     })
 
     mockInputs({
@@ -277,7 +279,7 @@ describe('main.ts', () => {
   it('handles non-existent prompt-file with an error', async () => {
     const promptFile = 'non-existent-prompt.txt'
 
-    mockFileContent({}, [promptFile])
+    mockFileContent({}, ['/app/' + promptFile])
 
     mockInputs({
       'prompt-file': promptFile,

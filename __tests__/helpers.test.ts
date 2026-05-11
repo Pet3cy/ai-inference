@@ -20,7 +20,7 @@ describe('helpers.ts', () => {
 
   describe('loadContentFromFileOrInput', () => {
     it('loads content from file when file path is provided', () => {
-      const filePath = '/path/to/file.txt'
+      const filePath = 'path/to/file.txt'
       const fileContent = 'File content here'
 
       core.getInput.mockImplementation((name: string) => {
@@ -35,13 +35,13 @@ describe('helpers.ts', () => {
       const result = loadContentFromFileOrInput('file-input', 'content-input')
 
       expect(core.getInput).toHaveBeenCalledWith('file-input')
-      expect(mockExistsSync).toHaveBeenCalledWith(filePath)
-      expect(mockReadFileSync).toHaveBeenCalledWith(filePath, 'utf-8')
+      expect(mockExistsSync).toHaveBeenCalledWith(expect.stringContaining(filePath))
+      expect(mockReadFileSync).toHaveBeenCalledWith(expect.stringContaining(filePath), 'utf-8')
       expect(result).toBe(fileContent)
     })
 
     it('throws error when file path is provided but file does not exist', () => {
-      const filePath = '/path/to/nonexistent.txt'
+      const filePath = 'path/to/nonexistent.txt'
 
       core.getInput.mockImplementation((name: string) => {
         if (name === 'file-input') return filePath
@@ -53,9 +53,9 @@ describe('helpers.ts', () => {
 
       expect(() => {
         loadContentFromFileOrInput('file-input', 'content-input')
-      }).toThrow('File for file-input was not found: /path/to/nonexistent.txt')
+      }).toThrow(/File for file-input was not found/)
 
-      expect(mockExistsSync).toHaveBeenCalledWith(filePath)
+      expect(mockExistsSync).toHaveBeenCalledWith(expect.stringContaining(filePath))
       expect(mockReadFileSync).not.toHaveBeenCalled()
     })
 
@@ -78,7 +78,7 @@ describe('helpers.ts', () => {
     })
 
     it('prefers file path over content input when both are provided', () => {
-      const filePath = '/path/to/file.txt'
+      const filePath = 'path/to/file.txt'
       const fileContent = 'File content'
       const contentInput = 'Direct content input'
 
@@ -94,8 +94,8 @@ describe('helpers.ts', () => {
       const result = loadContentFromFileOrInput('file-input', 'content-input')
 
       expect(result).toBe(fileContent)
-      expect(mockExistsSync).toHaveBeenCalledWith(filePath)
-      expect(mockReadFileSync).toHaveBeenCalledWith(filePath, 'utf-8')
+      expect(mockExistsSync).toHaveBeenCalledWith(expect.stringContaining(filePath))
+      expect(mockReadFileSync).toHaveBeenCalledWith(expect.stringContaining(filePath), 'utf-8')
     })
 
     it('uses default value when neither file nor content is provided', () => {

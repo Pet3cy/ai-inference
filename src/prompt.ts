@@ -1,6 +1,7 @@
 import * as core from '@actions/core'
 import * as fs from 'fs'
 import * as yaml from 'js-yaml'
+import {validatePath} from './helpers.js'
 
 export interface PromptMessage {
   role: 'system' | 'user' | 'assistant'
@@ -66,11 +67,12 @@ export function parseFileTemplateVariables(fileInput: string): TemplateVariables
         throw new Error(`File template variable '${key}' must be a string file path`)
       }
       const filePath = value
-      if (!fs.existsSync(filePath)) {
+      const safePath = validatePath(filePath)
+      if (!fs.existsSync(safePath)) {
         throw new Error(`File for template variable '${key}' was not found: ${filePath}`)
       }
       try {
-        result[key] = fs.readFileSync(filePath, 'utf-8')
+        result[key] = fs.readFileSync(safePath, 'utf-8')
       } catch (err) {
         throw new Error(
           `Failed to read file for template variable '${key}' at path '${filePath}': ${err instanceof Error ? err.message : 'Unknown error'}`,
@@ -103,11 +105,12 @@ export function replaceTemplateVariables(text: string, variables: TemplateVariab
  * Load and parse a prompt YAML file with template variable substitution
  */
 export function loadPromptFile(filePath: string, templateVariables: TemplateVariables = {}): PromptConfig {
-  if (!fs.existsSync(filePath)) {
+  const safePath = validatePath(filePath)
+  if (!fs.existsSync(safePath)) {
     throw new Error(`Prompt file not found: ${filePath}`)
   }
 
-  const fileContent = fs.readFileSync(filePath, 'utf-8')
+  const fileContent = fs.readFileSync(safePath, 'utf-8')
 
   try {
     const config = yaml.load(fileContent) as PromptConfig

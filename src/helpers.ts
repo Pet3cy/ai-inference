@@ -1,8 +1,26 @@
 import * as core from '@actions/core'
 import * as fs from 'fs'
 import * as yaml from 'js-yaml'
+import * as path from 'path'
 import {PromptConfig} from './prompt.js'
 import {InferenceRequest} from './inference.js'
+
+/**
+ * Validates a path to prevent directory traversal attacks
+ * @param inputPath - The path to validate
+ * @returns The resolved absolute path if valid
+ */
+export function validatePath(inputPath: string): string {
+  const baseDir = process.cwd()
+  const resolvedPath = path.resolve(baseDir, inputPath)
+  const relativePath = path.relative(baseDir, resolvedPath)
+
+  if (relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+    throw new Error(`Path traversal detected: ${inputPath}`)
+  }
+
+  return resolvedPath
+}
 
 /**
  * Helper function to load content from a file or use fallback input
@@ -16,10 +34,11 @@ export function loadContentFromFileOrInput(filePathInput: string, contentInput: 
   const contentString = core.getInput(contentInput)
 
   if (filePath !== undefined && filePath !== '') {
-    if (!fs.existsSync(filePath)) {
+    const safePath = validatePath(filePath)
+    if (!fs.existsSync(safePath)) {
       throw new Error(`File for ${filePathInput} was not found: ${filePath}`)
     }
-    return fs.readFileSync(filePath, 'utf-8')
+    return fs.readFileSync(safePath, 'utf-8')
   } else if (contentString !== undefined && contentString !== '') {
     return contentString
   } else if (defaultValue !== undefined) {
