@@ -1,5 +1,6 @@
 import {vi, it, expect, beforeEach, describe} from 'vitest'
 import * as core from '../__fixtures__/core.js'
+import * as path from 'path'
 
 const mockExistsSync = vi.fn()
 const mockReadFileSync = vi.fn()
@@ -11,16 +12,80 @@ vi.mock('fs', () => ({
 
 vi.mock('@actions/core', () => core)
 
-const {loadContentFromFileOrInput, parseCustomHeaders} = await import('../src/helpers.js')
+const {loadContentFromFileOrInput, parseCustomHeaders, validatePath} = await import('../src/helpers.js')
 
 describe('helpers.ts', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
+  describe('validatePath', () => {
+    it('resolves a relative path within cwd to an absolute path', () => {
+      const result = validatePath('some/relative/path.txt')
+      expect(result).toBe(path.resolve(process.cwd(), 'some/relative/path.txt'))
+    })
+
+    it('resolves a simple filename to an absolute path within cwd', () => {
+      const result = validatePath('file.txt')
+      expect(result).toBe(path.resolve(process.cwd(), 'file.txt'))
+    })
+
+    it('allows path with internal .. that resolves within cwd', () => {
+      const result = validatePath('a/../b/file.txt')
+      expect(result).toBe(path.resolve(process.cwd(), 'b/file.txt'))
+    })
+
+    it('allows an absolute path that is within cwd', () => {
+      const inCwdPath = path.join(process.cwd(), 'subdir', 'file.txt')
+      const result = validatePath(inCwdPath)
+      expect(result).toBe(inCwdPath)
+    })
+
+    it('throws for a path that traverses above cwd using ../', () => {
+      expect(() => validatePath('../outside.txt')).toThrow('Path traversal detected')
+    })
+
+    it('throws for a deeply nested traversal path', () => {
+      expect(() => validatePath('a/../../outside.txt')).toThrow('Path traversal detected')
+    })
+
+    it('throws for a pure .. path', () => {
+      expect(() => validatePath('..')).toThrow('Path traversal detected')
+    })
+
+    it('throws for an absolute path outside cwd', () => {
+      expect(() => validatePath('/etc/passwd')).toThrow('Path traversal detected')
+    })
+
+    it('throws for path traversal with encoded or mixed separators', () => {
+      // Multiple levels up
+      expect(() => validatePath('../../etc/passwd')).toThrow('Path traversal detected')
+    })
+
+    it('allows current directory reference (.)', () => {
+      const result = validatePath('.')
+      expect(result).toBe(path.resolve(process.cwd(), '.'))
+    })
+
+    it('allows empty string (resolves to cwd)', () => {
+      const result = validatePath('')
+      expect(result).toBe(path.resolve(process.cwd(), ''))
+    })
+
+    it('allows an absolute path that is exactly cwd', () => {
+      const result = validatePath(process.cwd())
+      expect(result).toBe(process.cwd())
+    })
+
+    it('includes the offending path in the error message', () => {
+      const badPath = '../secret/file.txt'
+      expect(() => validatePath(badPath)).toThrow(badPath)
+    })
+  })
+
   describe('loadContentFromFileOrInput', () => {
     it('loads content from file when file path is provided', () => {
-      const filePath = '/path/to/file.txt'
+      const filePath = 'path/to/file.txt'
       const fileContent = 'File content here'
 
       core.getInput.mockImplementation((name: string) => {
@@ -35,13 +100,13 @@ describe('helpers.ts', () => {
       const result = loadContentFromFileOrInput('file-input', 'content-input')
 
       expect(core.getInput).toHaveBeenCalledWith('file-input')
-      expect(mockExistsSync).toHaveBeenCalledWith(filePath)
-      expect(mockReadFileSync).toHaveBeenCalledWith(filePath, 'utf-8')
+      expect(mockExistsSync).toHaveBeenCalledWith(expect.stringContaining(filePath))
+      expect(mockReadFileSync).toHaveBeenCalledWith(expect.stringContaining(filePath), 'utf-8')
       expect(result).toBe(fileContent)
     })
 
     it('throws error when file path is provided but file does not exist', () => {
-      const filePath = '/path/to/nonexistent.txt'
+      const filePath = 'path/to/nonexistent.txt'
 
       core.getInput.mockImplementation((name: string) => {
         if (name === 'file-input') return filePath
@@ -53,9 +118,9 @@ describe('helpers.ts', () => {
 
       expect(() => {
         loadContentFromFileOrInput('file-input', 'content-input')
-      }).toThrow('File for file-input was not found: /path/to/nonexistent.txt')
+      }).toThrow(/File for file-input was not found/)
 
-      expect(mockExistsSync).toHaveBeenCalledWith(filePath)
+      expect(mockExistsSync).toHaveBeenCalledWith(expect.stringContaining(filePath))
       expect(mockReadFileSync).not.toHaveBeenCalled()
     })
 
@@ -78,7 +143,7 @@ describe('helpers.ts', () => {
     })
 
     it('prefers file path over content input when both are provided', () => {
-      const filePath = '/path/to/file.txt'
+      const filePath = 'path/to/file.txt'
       const fileContent = 'File content'
       const contentInput = 'Direct content input'
 
@@ -94,8 +159,8 @@ describe('helpers.ts', () => {
       const result = loadContentFromFileOrInput('file-input', 'content-input')
 
       expect(result).toBe(fileContent)
-      expect(mockExistsSync).toHaveBeenCalledWith(filePath)
-      expect(mockReadFileSync).toHaveBeenCalledWith(filePath, 'utf-8')
+      expect(mockExistsSync).toHaveBeenCalledWith(expect.stringContaining(filePath))
+      expect(mockReadFileSync).toHaveBeenCalledWith(expect.stringContaining(filePath), 'utf-8')
     })
 
     it('uses default value when neither file nor content is provided', () => {
@@ -119,6 +184,41 @@ describe('helpers.ts', () => {
 
       expect(mockExistsSync).not.toHaveBeenCalled()
       expect(mockReadFileSync).not.toHaveBeenCalled()
+    })
+
+    it('throws when file path attempts directory traversal', () => {
+      core.getInput.mockImplementation((name: string) => {
+        if (name === 'file-input') return '../../../etc/passwd'
+        if (name === 'content-input') return ''
+        return ''
+      })
+
+      expect(() => {
+        loadContentFromFileOrInput('file-input', 'content-input')
+      }).toThrow('Path traversal detected')
+
+      expect(mockExistsSync).not.toHaveBeenCalled()
+      expect(mockReadFileSync).not.toHaveBeenCalled()
+    })
+
+    it('accepts an absolute path that resolves within cwd', () => {
+      const absolutePathInCwd = path.join(process.cwd(), 'subdir', 'file.txt')
+      const fileContent = 'content from absolute path'
+
+      core.getInput.mockImplementation((name: string) => {
+        if (name === 'file-input') return absolutePathInCwd
+        if (name === 'content-input') return ''
+        return ''
+      })
+
+      mockExistsSync.mockReturnValue(true)
+      mockReadFileSync.mockReturnValue(fileContent)
+
+      const result = loadContentFromFileOrInput('file-input', 'content-input')
+
+      expect(result).toBe(fileContent)
+      expect(mockExistsSync).toHaveBeenCalledWith(absolutePathInCwd)
+      expect(mockReadFileSync).toHaveBeenCalledWith(absolutePathInCwd, 'utf-8')
     })
 
     it('handles undefined inputs correctly', () => {
@@ -201,20 +301,6 @@ password: pass123`
 
       // Non-sensitive headers should not be masked
       expect(core.debug).toHaveBeenCalledWith('Custom header added: serviceName: my-service')
-    })
-
-    it('masks additional sensitive header patterns', () => {
-      const yamlInput = `Cookie: session_id=12345
-X-Bearer-Token: abcdef
-Session-ID: xyz789
-X-Credentials: user:pass`
-
-      parseCustomHeaders(yamlInput)
-
-      expect(core.debug).toHaveBeenCalledWith('Custom header added: Cookie: ***MASKED***')
-      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Bearer-Token: ***MASKED***')
-      expect(core.debug).toHaveBeenCalledWith('Custom header added: Session-ID: ***MASKED***')
-      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Credentials: ***MASKED***')
     })
 
     it('validates header names and skips invalid ones', () => {
@@ -359,6 +445,55 @@ header2: |
       )
     })
 
+    it('masks cookie/session header values in debug logs', () => {
+      // Cookie and session headers commonly carry authentication credentials,
+      // so their values must be masked in debug logs. The "credential" and
+      // "bearer" substrings are not in sensitivePatterns, so headers whose
+      // names contain those substrings (and nothing else sensitive) are
+      // logged in the clear.
+      const yamlInput = `Cookie: session_id=12345
+X-Session-Data: xyz789
+X-Credentials: user:pass
+X-Bearer: only-bearer-no-token`
+
+      const result = parseCustomHeaders(yamlInput)
+
+      expect(result).toEqual({
+        Cookie: 'session_id=12345',
+        'X-Session-Data': 'xyz789',
+        'X-Credentials': 'user:pass',
+        'X-Bearer': 'only-bearer-no-token',
+      })
+
+      // cookie/session match sensitivePatterns → masked
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: Cookie: ***MASKED***')
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Session-Data: ***MASKED***')
+      // credential/bearer are not in sensitivePatterns → logged unmasked
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Credentials: user:pass')
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Bearer: only-bearer-no-token')
+    })
+
+    it('still masks X-Bearer-Token because it contains "token" pattern', () => {
+      // 'bearer' was removed from sensitivePatterns, but 'token' was NOT.
+      // A header named 'X-Bearer-Token' still contains 'token' → must be masked.
+      const yamlInput = 'X-Bearer-Token: abc123'
+
+      const result = parseCustomHeaders(yamlInput)
+
+      expect(result).toEqual({'X-Bearer-Token': 'abc123'})
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Bearer-Token: ***MASKED***')
+    })
+
+    it('does not mask a header whose name only contains "bearer" (bearer not in sensitivePatterns)', () => {
+      const yamlInput = 'X-Bearer: my-value'
+
+      const result = parseCustomHeaders(yamlInput)
+
+      expect(result).toEqual({'X-Bearer': 'my-value'})
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Bearer: my-value')
+      expect(core.debug).not.toHaveBeenCalledWith(expect.stringContaining('***MASKED***'))
+    })
+
     it('handles complex real-world Azure APIM example', () => {
       const apimHeaders = `Ocp-Apim-Subscription-Key: my-subscription-key-123
 serviceName: terraform-plan-workflow
@@ -381,71 +516,6 @@ systemID: terraform-ci`
       // Only the subscription key should be masked
       expect(core.debug).toHaveBeenCalledWith('Custom header added: Ocp-Apim-Subscription-Key: ***MASKED***')
       expect(core.debug).toHaveBeenCalledWith('Custom header added: serviceName: terraform-plan-workflow')
-    })
-
-    it('does not mask cookie, bearer, session, or credential headers (removed from sensitive patterns)', () => {
-      const yamlInput = `Cookie: session_id=12345
-X-Bearer-Token: abcdef
-Session-ID: xyz789
-X-Credentials: user:pass`
-
-      const result = parseCustomHeaders(yamlInput)
-
-      expect(result).toEqual({
-        Cookie: 'session_id=12345',
-        'X-Bearer-Token': 'abcdef',
-        'Session-ID': 'xyz789',
-        'X-Credentials': 'user:pass',
-      })
-
-      // These patterns were removed from sensitivePatterns, so values should be logged as-is
-      expect(core.debug).toHaveBeenCalledWith('Custom header added: Cookie: session_id=12345')
-      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Bearer-Token: abcdef')
-      expect(core.debug).toHaveBeenCalledWith('Custom header added: Session-ID: xyz789')
-      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Credentials: user:pass')
-
-      // None of them should be masked
-      expect(core.debug).not.toHaveBeenCalledWith(expect.stringContaining('***MASKED***'))
-    })
-
-    it('still masks headers matching the remaining five sensitive patterns', () => {
-      const yamlInput = `API-Key: mykey123
-X-Auth-Token: tok456
-My-Secret: shh
-user-password: hunter2
-Authorization: Basic dXNlcjpwYXNz`
-
-      const result = parseCustomHeaders(yamlInput)
-
-      expect(result).toEqual({
-        'API-Key': 'mykey123',
-        'X-Auth-Token': 'tok456',
-        'My-Secret': 'shh',
-        'user-password': 'hunter2',
-        Authorization: 'Basic dXNlcjpwYXNz',
-      })
-
-      expect(core.debug).toHaveBeenCalledWith('Custom header added: API-Key: ***MASKED***')
-      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Auth-Token: ***MASKED***')
-      expect(core.debug).toHaveBeenCalledWith('Custom header added: My-Secret: ***MASKED***')
-      expect(core.debug).toHaveBeenCalledWith('Custom header added: user-password: ***MASKED***')
-      expect(core.debug).toHaveBeenCalledWith('Custom header added: Authorization: ***MASKED***')
-    })
-
-    it('does not mask a header whose name contains credential substring (credential removed from sensitive patterns)', () => {
-      const jsonInput = '{"X-Service-Credential": "abc", "X-Api-Key": "secret"}'
-
-      const result = parseCustomHeaders(jsonInput)
-
-      expect(result).toEqual({
-        'X-Service-Credential': 'abc',
-        'X-Api-Key': 'secret',
-      })
-
-      // credential is no longer in sensitivePatterns, so X-Service-Credential should not be masked
-      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Service-Credential: abc')
-      // key IS still sensitive, so X-Api-Key should be masked
-      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Api-Key: ***MASKED***')
     })
   })
 })
