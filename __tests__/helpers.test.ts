@@ -303,6 +303,61 @@ password: pass123`
       expect(core.debug).toHaveBeenCalledWith('Custom header added: serviceName: my-service')
     })
 
+    it('does not mask cookie headers (removed from sensitive patterns)', () => {
+      const yamlInput = `Cookie: session_id=12345
+X-Session: my-session-data`
+
+      const result = parseCustomHeaders(yamlInput)
+
+      expect(result).toEqual({
+        Cookie: 'session_id=12345',
+        'X-Session': 'my-session-data',
+      })
+
+      // Cookie and Session patterns were removed - values should appear unmasked in logs
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: Cookie: session_id=12345')
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Session: my-session-data')
+      expect(core.debug).not.toHaveBeenCalledWith('Custom header added: Cookie: ***MASKED***')
+      expect(core.debug).not.toHaveBeenCalledWith('Custom header added: X-Session: ***MASKED***')
+    })
+
+    it('does not mask bearer and credential headers (removed from sensitive patterns)', () => {
+      // "bearer" and "credential" were removed from sensitivePatterns.
+      // Note: X-Bearer-Token still contains "token" (still a sensitive pattern), so it IS masked.
+      // Use names that only contain the removed patterns, not any remaining ones.
+      const yamlInput = `X-Bearer-Auth: abcdef
+X-Credentials: user:pass`
+
+      const result = parseCustomHeaders(yamlInput)
+
+      expect(result).toEqual({
+        'X-Bearer-Auth': 'abcdef',
+        'X-Credentials': 'user:pass',
+      })
+
+      // Bearer and credential patterns were removed - values should appear unmasked in logs
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Bearer-Auth: abcdef')
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Credentials: user:pass')
+      expect(core.debug).not.toHaveBeenCalledWith('Custom header added: X-Bearer-Auth: ***MASKED***')
+      expect(core.debug).not.toHaveBeenCalledWith('Custom header added: X-Credentials: ***MASKED***')
+    })
+
+    it('still masks the five remaining sensitive patterns', () => {
+      const yamlInput = `X-Api-Key: key-value
+X-Auth-Token: token-value
+X-Secret-Data: secret-value
+X-Password: pass-value
+Authorization: Bearer xyz`
+
+      parseCustomHeaders(yamlInput)
+
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Api-Key: ***MASKED***')
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Auth-Token: ***MASKED***')
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Secret-Data: ***MASKED***')
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Password: ***MASKED***')
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: Authorization: ***MASKED***')
+    })
+
     it('validates header names and skips invalid ones', () => {
       const yamlInput = `valid-header: value1
 invalid header: value2
