@@ -66,6 +66,17 @@ describe('helpers.ts', () => {
       const result = validatePath('.')
       expect(result).toBe(path.resolve(process.cwd(), '.'))
     })
+
+    it('allows empty string (resolves to cwd itself)', () => {
+      const result = validatePath('')
+      expect(result).toBe(path.resolve(process.cwd(), ''))
+    })
+
+    it('allows an absolute path that is exactly cwd', () => {
+      const cwdPath = process.cwd()
+      const result = validatePath(cwdPath)
+      expect(result).toBe(cwdPath)
+    })
   })
 
   describe('loadContentFromFileOrInput', () => {
@@ -436,6 +447,24 @@ X-Bearer: only-bearer-no-token`
       // credential/bearer are not in sensitivePatterns → logged unmasked
       expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Credentials: user:pass')
       expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Bearer: only-bearer-no-token')
+    })
+
+    it('masks X-Bearer-Token via token pattern even though bearer alone is not sensitive', () => {
+      // 'bearer' was removed from sensitivePatterns, but 'token' remains.
+      // A header named 'X-Bearer-Token' contains the substring 'token', so it must be masked.
+      // A header named 'X-Bearer' (no 'token' substring) must not be masked.
+      const yamlInput = `X-Bearer-Token: secret-jwt
+X-Bearer: public-value`
+
+      const result = parseCustomHeaders(yamlInput)
+
+      expect(result).toEqual({
+        'X-Bearer-Token': 'secret-jwt',
+        'X-Bearer': 'public-value',
+      })
+
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Bearer-Token: ***MASKED***')
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Bearer: public-value')
     })
 
     it('handles complex real-world Azure APIM example', () => {

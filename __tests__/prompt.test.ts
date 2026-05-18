@@ -168,5 +168,13 @@ describe('prompt.ts', () => {
       const result = parseFileTemplateVariables('   ')
       expect(result).toEqual({})
     })
+
+    it('wraps YAML parse errors with a descriptive message', () => {
+      // A non-object YAML root value (e.g. a plain string) triggers the
+      // "File template variables must be a YAML object" error path.
+      expect(() => parseFileTemplateVariables('"just a string"')).toThrow(
+        'Failed to parse file template variables',
+      )
+    })
   })
 })

@@ -265,6 +265,19 @@ describe('mcp.ts', () => {
       expect(mockCallTool).not.toHaveBeenCalled()
     })
 
+    it('executes a single tool call sequentially without issues', async () => {
+      const toolCalls = [{id: 'only-call', type: 'function', function: {name: 'solo-tool', arguments: '{}'}}]
+
+      mockCallTool.mockResolvedValueOnce({content: [{type: 'text', text: 'Solo result'}]})
+
+      const results = await executeToolCalls(mockClient, toolCalls)
+
+      expect(mockCallTool).toHaveBeenCalledTimes(1)
+      expect(results).toHaveLength(1)
+      expect(results[0].tool_call_id).toBe('only-call')
+      expect(results[0].name).toBe('solo-tool')
+    })
+
     it('executes tool calls sequentially (in order, not in parallel)', async () => {
       const executionOrder: string[] = []
       const flush = () => new Promise<void>(resolve => setImmediate(resolve))
