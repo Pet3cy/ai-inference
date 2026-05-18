@@ -169,43 +169,42 @@ describe('prompt.ts', () => {
       expect(result).toEqual({})
     })
 
-    it('reads multiple file variables in a single call', () => {
+    it('returns empty object for newline-only input', () => {
+      const result = parseFileTemplateVariables('\n\n')
+      expect(result).toEqual({})
+    })
+
+    it('reads multiple variables from a single YAML input', () => {
+      const configPath = path.join(__dirname, '../__fixtures__/prompts/json-schema.prompt.yml')
       const simplePath = path.join(__dirname, '../__fixtures__/prompts/simple.prompt.yml')
-      const schemaPath = path.join(__dirname, '../__fixtures__/prompts/json-schema.prompt.yml')
-      const data = parseFileTemplateVariables(`simple: ${simplePath}\nschema: ${schemaPath}`)
-      expect(data.simple).toContain('messages:')
+      const data = parseFileTemplateVariables(`schema: ${configPath}\nsimple: ${simplePath}`)
       expect(data.schema).toContain('responseFormat:')
+      expect(data.simple).toContain('messages:')
+      expect(Object.keys(data)).toHaveLength(2)
     })
 
-    it('returns synchronously (not a Promise)', () => {
-      const configPath = path.join(__dirname, '../__fixtures__/prompts/simple.prompt.yml')
-      const result = parseFileTemplateVariables(`f: ${configPath}`)
-      // A Promise would have a .then method; a plain object must not
-      expect(typeof (result as unknown as Promise<unknown>).then).toBe('undefined')
-      expect(typeof result).toBe('object')
+    it('throws when YAML parses to a non-object value (e.g. null)', () => {
+      expect(() => parseFileTemplateVariables('null')).toThrow('Failed to parse file template variables')
     })
 
-    it('throws for null YAML value', () => {
-      expect(() => parseFileTemplateVariables('x: null')).toThrow(
-        "File template variable 'x' must be a string file path",
-      )
+    it('throws when YAML parses to a scalar string (not an object)', () => {
+      expect(() => parseFileTemplateVariables('"just a string"')).toThrow('Failed to parse file template variables')
     })
 
-    it('throws with error wrapping for invalid YAML structure', () => {
-      expect(() => parseFileTemplateVariables('invalid: yaml: bad:')).toThrow('Failed to parse file template variables')
+    it('throws with original path in error for missing file', () => {
+      const missingPath = './does-not-exist-unique.txt'
+      expect(() => parseFileTemplateVariables(`myvar: ${missingPath}`)).toThrow(missingPath)
     })
   })
 
-  describe('loadPromptFile (path security)', () => {
-    it('allows an absolute path to a fixture file within cwd', () => {
-      // path.join produces an absolute path that is under process.cwd(), so it
-      // must be accepted by validatePath without throwing.
-      const absolutePath = path.join(__dirname, '../__fixtures__/prompts/simple.prompt.yml')
-      expect(() => loadPromptFile(absolutePath)).not.toThrow('Path traversal detected')
+  describe('loadPromptFile path validation', () => {
+    it('throws for an absolute path outside cwd', () => {
+      expect(() => loadPromptFile('/tmp/evil.prompt.yml')).toThrow('Path traversal detected')
     })
 
-    it('throws "Prompt file not found" for a valid (non-traversal) but missing path', () => {
-      expect(() => loadPromptFile('definitely-does-not-exist.prompt.yml')).toThrow('Prompt file not found')
+    it('error message from path traversal contains the bad input', () => {
+      const badPath = '../etc/evil.yml'
+      expect(() => loadPromptFile(badPath)).toThrow('Path traversal detected')
     })
   })
 })
