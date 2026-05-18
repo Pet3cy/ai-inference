@@ -2,7 +2,7 @@ import * as core from '@actions/core'
 import * as fs from 'fs'
 import * as yaml from 'js-yaml'
 import * as path from 'path'
-import {PromptConfig} from './prompt.js'
+import type {PromptConfig} from './prompt.js'
 import {InferenceRequest} from './inference.js'
 
 /**
@@ -37,13 +37,13 @@ export function loadContentFromFileOrInput(filePathInput: string, contentInput: 
   const filePath = core.getInput(filePathInput)
   const contentString = core.getInput(contentInput)
 
-  if (filePath !== undefined && filePath !== '') {
+  if (filePath) {
     const safePath = validatePath(filePath)
     if (!fs.existsSync(safePath)) {
       throw new Error(`File for ${filePathInput} was not found: ${filePath}`)
     }
     return fs.readFileSync(safePath, 'utf-8')
-  } else if (contentString !== undefined && contentString !== '') {
+  } else if (contentString) {
     return contentString
   } else if (defaultValue !== undefined) {
     return defaultValue
@@ -104,16 +104,15 @@ export function buildResponseFormat(
  * @returns Record of header names to values, or empty object if invalid
  */
 export function parseCustomHeaders(input: string): Record<string, string> {
-  if (!input || input.trim() === '') {
+  const trimmedInput = input?.trim()
+  if (!trimmedInput) {
     return {}
   }
-
-  const trimmedInput = input.trim()
 
   try {
     // Try JSON first (check if it starts with { or [)
     if (trimmedInput.startsWith('{') || trimmedInput.startsWith('[')) {
-      const parsed = JSON.parse(trimmedInput)
+
       if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
         core.warning('Custom headers JSON must be an object, not null or an array')
         return {}
@@ -141,7 +140,7 @@ export function parseCustomHeaders(input: string): Record<string, string> {
  */
 function validateAndMaskHeaders(headers: Record<string, unknown>): Record<string, string> {
   const validHeaders: Record<string, string> = {}
-  const sensitivePatterns = ['key', 'token', 'secret', 'password', 'authorization']
+  const sensitivePatterns = ['key', 'token', 'secret', 'password', 'authorization', 'cookie', 'session']
 
   for (const [name, value] of Object.entries(headers)) {
     // Validate header name (RFC 7230: token = 1*tchar)

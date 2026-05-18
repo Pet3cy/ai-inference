@@ -122,6 +122,14 @@ describe('prompt.ts', () => {
     it('should throw error for non-existent file', () => {
       expect(() => loadPromptFile('non-existent.prompt.yml')).toThrow('Prompt file not found')
     })
+
+    it('should throw for path traversal attempts', () => {
+      expect(() => loadPromptFile('../../../etc/passwd')).toThrow('Path traversal detected')
+    })
+
+    it('should throw for path traversal using multiple levels', () => {
+      expect(() => loadPromptFile('../../some-file.txt')).toThrow('Path traversal detected')
+    })
   })
 
   describe('parseFileTemplateVariables', () => {
@@ -146,6 +154,57 @@ describe('prompt.ts', () => {
       expect(() => parseFileTemplateVariables('x: { nested: "object" }')).toThrow(
         "File template variable 'x' must be a string file path",
       )
+    })
+
+    it('throws for path traversal in file variable value', () => {
+      expect(() => parseFileTemplateVariables('x: ../../../etc/passwd')).toThrow('Path traversal detected')
+    })
+
+    it('throws for path traversal using multiple levels', () => {
+      expect(() => parseFileTemplateVariables('x: ../../some-file.txt')).toThrow('Path traversal detected')
+    })
+
+    it('returns empty object for empty input', () => {
+      const result = parseFileTemplateVariables('   ')
+      expect(result).toEqual({})
+    })
+
+    it('returns empty object for newline-only input', () => {
+      const result = parseFileTemplateVariables('\n\n')
+      expect(result).toEqual({})
+    })
+
+    it('reads multiple variables from a single YAML input', () => {
+      const configPath = path.join(__dirname, '../__fixtures__/prompts/json-schema.prompt.yml')
+      const simplePath = path.join(__dirname, '../__fixtures__/prompts/simple.prompt.yml')
+      const data = parseFileTemplateVariables(`schema: ${configPath}\nsimple: ${simplePath}`)
+      expect(data.schema).toContain('responseFormat:')
+      expect(data.simple).toContain('messages:')
+      expect(Object.keys(data)).toHaveLength(2)
+    })
+
+    it('throws when YAML parses to a non-object value (e.g. null)', () => {
+      expect(() => parseFileTemplateVariables('null')).toThrow('Failed to parse file template variables')
+    })
+
+    it('throws when YAML parses to a scalar string (not an object)', () => {
+      expect(() => parseFileTemplateVariables('"just a string"')).toThrow('Failed to parse file template variables')
+    })
+
+    it('throws with original path in error for missing file', () => {
+      const missingPath = './does-not-exist-unique.txt'
+      expect(() => parseFileTemplateVariables(`myvar: ${missingPath}`)).toThrow(missingPath)
+    })
+  })
+
+  describe('loadPromptFile path validation', () => {
+    it('throws for an absolute path outside cwd', () => {
+      expect(() => loadPromptFile('/tmp/evil.prompt.yml')).toThrow('Path traversal detected')
+    })
+
+    it('error message from path traversal contains the bad input', () => {
+      const badPath = '../etc/evil.yml'
+      expect(() => loadPromptFile(badPath)).toThrow('Path traversal detected')
     })
   })
 })

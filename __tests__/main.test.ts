@@ -1,4 +1,5 @@
 import {vi, describe, expect, it, beforeEach, type MockedFunction} from 'vitest'
+import * as path from 'path'
 import * as core from '../__fixtures__/core.js'
 
 // Default to throwing errors to catch unexpected calls
@@ -238,15 +239,13 @@ describe('main.ts', () => {
 
   it('properly integrates with loadContentFromFileOrInput', async () => {
     const promptFile = 'prompt.txt'
-    const resolvedPromptFile = '/app/prompt.txt'
     const systemPromptFile = 'system-prompt.txt'
-    const resolvedSystemPromptFile = '/app/system-prompt.txt'
     const promptContent = 'File-based prompt'
     const systemPromptContent = 'File-based system prompt'
 
     mockFileContent({
-      [resolvedPromptFile]: promptContent,
-      [resolvedSystemPromptFile]: systemPromptContent,
+      [path.resolve(process.cwd(), promptFile)]: promptContent,
+      [path.resolve(process.cwd(), systemPromptFile)]: systemPromptContent,
     })
 
     mockInputs({
@@ -279,7 +278,7 @@ describe('main.ts', () => {
   it('handles non-existent prompt-file with an error', async () => {
     const promptFile = 'non-existent-prompt.txt'
 
-    mockFileContent({}, ['/app/' + promptFile])
+    mockFileContent({}, [path.resolve(process.cwd(), promptFile)])
 
     mockInputs({
       'prompt-file': promptFile,
@@ -289,6 +288,35 @@ describe('main.ts', () => {
 
     expect(core.setFailed).toHaveBeenCalledWith(`File for prompt-file was not found: ${promptFile}`)
     expect(mockProcessExit).toHaveBeenCalledWith(1)
+  })
+
+  it('fails with Path traversal detected when prompt-file contains directory traversal', async () => {
+    mockFileContent({})
+
+    mockInputs({
+      'prompt-file': '../../../etc/passwd',
+    })
+
+    await run()
+
+    expect(core.setFailed).toHaveBeenCalledWith(expect.stringContaining('Path traversal detected'))
+    expect(mockProcessExit).toHaveBeenCalledWith(1)
+    expect(mockSimpleInference).not.toHaveBeenCalled()
+  })
+
+  it('fails with Path traversal detected when system-prompt-file contains directory traversal', async () => {
+    mockFileContent({})
+
+    mockInputs({
+      prompt: 'Some prompt',
+      'system-prompt-file': '../../outside.txt',
+    })
+
+    await run()
+
+    expect(core.setFailed).toHaveBeenCalledWith(expect.stringContaining('Path traversal detected'))
+    expect(mockProcessExit).toHaveBeenCalledWith(1)
+    expect(mockSimpleInference).not.toHaveBeenCalled()
   })
 
   it('creates temporary files that persist for downstream steps', async () => {

@@ -28,22 +28,29 @@ export interface TemplateVariables {
 }
 
 /**
- * Parse template variables from YAML input string
+ * Parse template variables from a YAML string into a string-to-string map.
+ *
+ * @param input - YAML-formatted string containing a mapping of template variable names to values
+ * @returns The parsed template variables as a `TemplateVariables` object; returns an empty object if `input` is empty or only whitespace
+ * @throws Error if parsing fails or the YAML root value is not an object (messages: "Template variables must be a YAML object" or "Failed to parse template variables: <message>")
  */
 export function parseTemplateVariables(input: string): TemplateVariables {
   if (!input.trim()) {
     return {}
   }
 
+  let parsed: unknown
   try {
-    const parsed = yaml.load(input) as TemplateVariables
-    if (typeof parsed !== 'object' || parsed === null) {
-      throw new Error('Template variables must be a YAML object')
-    }
-    return parsed
+    parsed = yaml.load(input)
   } catch (error) {
     throw new Error(`Failed to parse template variables: ${error instanceof Error ? error.message : 'Unknown error'}`)
   }
+
+  if (typeof parsed !== 'object' || parsed === null) {
+    throw new Error('Template variables must be a YAML object')
+  }
+
+  return parsed as TemplateVariables
 }
 
 /**
@@ -62,41 +69,49 @@ export function parseFileTemplateVariables(fileInput: string): TemplateVariables
     return {}
   }
 
+  let parsed: unknown
   try {
-    const parsed = yaml.load(fileInput) as Record<string, unknown>
-    if (typeof parsed !== 'object' || parsed === null) {
-      throw new Error('File template variables must be a YAML object')
-    }
-
-    const result: TemplateVariables = {}
-    for (const [key, value] of Object.entries(parsed)) {
-      if (typeof value !== 'string') {
-        throw new Error(`File template variable '${key}' must be a string file path`)
-      }
-      const filePath = value
-      const safePath = validatePath(filePath)
-      if (!fs.existsSync(safePath)) {
-        throw new Error(`File for template variable '${key}' was not found: ${filePath}`)
-      }
-      try {
-        result[key] = fs.readFileSync(safePath, 'utf-8')
-      } catch (err) {
-        throw new Error(
-          `Failed to read file for template variable '${key}' at path '${filePath}': ${err instanceof Error ? err.message : 'Unknown error'}`,
-        )
-      }
-    }
-
-    return result
+    parsed = yaml.load(fileInput)
   } catch (error) {
     throw new Error(
       `Failed to parse file template variables: ${error instanceof Error ? error.message : 'Unknown error'}`,
     )
   }
+
+  if (typeof parsed !== 'object' || parsed === null) {
+    throw new Error('File template variables must be a YAML object')
+  }
+
+  const result: TemplateVariables = {}
+  for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
+    if (typeof value !== 'string') {
+      throw new Error(`File template variable '${key}' must be a string file path`)
+    }
+    const safePath = validatePath(value)
+    try {
+      result[key] = fs.readFileSync(safePath, 'utf-8')
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException)?.code
+      if (code === 'ENOENT') {
+        throw new Error(`File for template variable '${key}' was not found: ${value}`)
+      }
+      throw new Error(
+        `Failed to read file for template variable '${key}' at path '${value}': ${err instanceof Error ? err.message : 'Unknown error'}`,
+      )
+
+  }
+
+  return result
 }
 
 /**
- * Replace template variables in text using {{variable}} syntax
+ * Substitute {{variable}} placeholders in a string with provided variable values.
+ *
+ * Replaces every `{{name}}` occurrence with the corresponding value from `variables`. If a placeholder has no matching key, a warning is emitted via `core.warning` and the original placeholder is left unchanged.
+ *
+ * @param text - The string containing `{{...}}` placeholders to replace.
+ * @param variables - Mapping of variable names to replacement strings.
+ * @returns The input string with matching placeholders replaced by their values.
  */
 export function replaceTemplateVariables(text: string, variables: TemplateVariables): string {
   return text.replace(/\{\{([\w.-]+)\}\}/g, (match, variableName) => {
