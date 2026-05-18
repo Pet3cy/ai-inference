@@ -169,27 +169,43 @@ describe('prompt.ts', () => {
       expect(result).toEqual({})
     })
 
-    it('returns empty object for purely empty string', () => {
-      const result = parseFileTemplateVariables('')
-      expect(result).toEqual({})
+    it('reads multiple file variables in a single call', () => {
+      const simplePath = path.join(__dirname, '../__fixtures__/prompts/simple.prompt.yml')
+      const schemaPath = path.join(__dirname, '../__fixtures__/prompts/json-schema.prompt.yml')
+      const data = parseFileTemplateVariables(`simple: ${simplePath}\nschema: ${schemaPath}`)
+      expect(data.simple).toContain('messages:')
+      expect(data.schema).toContain('responseFormat:')
     })
 
-    it('throws a wrapped error when YAML is syntactically invalid', () => {
-      expect(() => parseFileTemplateVariables('invalid: yaml: content: :')).toThrow(
-        'Failed to parse file template variables:',
+    it('returns synchronously (not a Promise)', () => {
+      const configPath = path.join(__dirname, '../__fixtures__/prompts/simple.prompt.yml')
+      const result = parseFileTemplateVariables(`f: ${configPath}`)
+      // A Promise would have a .then method; a plain object must not
+      expect(typeof (result as unknown as Promise<unknown>).then).toBe('undefined')
+      expect(typeof result).toBe('object')
+    })
+
+    it('throws for null YAML value', () => {
+      expect(() => parseFileTemplateVariables('x: null')).toThrow(
+        "File template variable 'x' must be a string file path",
       )
     })
 
-    it('throws when YAML root is null (not an object)', () => {
-      expect(() => parseFileTemplateVariables('null')).toThrow('Failed to parse file template variables:')
+    it('throws with error wrapping for invalid YAML structure', () => {
+      expect(() => parseFileTemplateVariables('invalid: yaml: bad:')).toThrow('Failed to parse file template variables')
+    })
+  })
+
+  describe('loadPromptFile (path security)', () => {
+    it('allows an absolute path to a fixture file within cwd', () => {
+      // path.join produces an absolute path that is under process.cwd(), so it
+      // must be accepted by validatePath without throwing.
+      const absolutePath = path.join(__dirname, '../__fixtures__/prompts/simple.prompt.yml')
+      expect(() => loadPromptFile(absolutePath)).not.toThrow('Path traversal detected')
     })
 
-    it('reads multiple file variables correctly', () => {
-      const configPath1 = path.join(__dirname, '../__fixtures__/prompts/json-schema.prompt.yml')
-      const configPath2 = path.join(__dirname, '../__fixtures__/prompts/simple.prompt.yml')
-      const data = parseFileTemplateVariables(`file1: ${configPath1}\nfile2: ${configPath2}`)
-      expect(data.file1).toContain('messages:')
-      expect(data.file2).toContain('messages:')
+    it('throws "Prompt file not found" for a valid (non-traversal) but missing path', () => {
+      expect(() => loadPromptFile('definitely-does-not-exist.prompt.yml')).toThrow('Prompt file not found')
     })
   })
 })

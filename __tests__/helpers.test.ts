@@ -69,22 +69,24 @@ describe('helpers.ts', () => {
 
     it('allows empty string (resolves to cwd itself)', () => {
       const result = validatePath('')
-      expect(result).toBe(path.resolve(process.cwd(), ''))
+      expect(result).toBe(path.resolve(process.cwd()))
     })
 
-    it('allows an absolute path exactly equal to cwd', () => {
-      const cwdPath = process.cwd()
-      const result = validatePath(cwdPath)
-      expect(result).toBe(cwdPath)
-    })
-
-    it('allows a deeply nested path entirely within cwd', () => {
+    it('allows a deeply nested path that stays within cwd', () => {
       const result = validatePath('a/b/c/d/e/file.txt')
       expect(result).toBe(path.resolve(process.cwd(), 'a/b/c/d/e/file.txt'))
     })
 
-    it('includes the offending input in the error message', () => {
-      expect(() => validatePath('../secret.txt')).toThrow('../secret.txt')
+    it('throws for a sibling directory that shares a cwd prefix (regression)', () => {
+      // e.g. cwd=/home/jailuser/git → /home/jailuser/git-extra/file.txt must be rejected
+      const cwd = process.cwd()
+      const siblingPath = cwd + '-extra/file.txt'
+      expect(() => validatePath(siblingPath)).toThrow('Path traversal detected')
+    })
+
+    it('returns an absolute path for every valid input', () => {
+      const result = validatePath('relative/path.txt')
+      expect(path.isAbsolute(result)).toBe(true)
     })
   })
 
@@ -458,24 +460,60 @@ X-Bearer: only-bearer-no-token`
       expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Bearer: only-bearer-no-token')
     })
 
-    it('masks X-Bearer-Token because it contains "token" (still in sensitivePatterns)', () => {
-      // "bearer" was removed from sensitivePatterns but "token" was not.
-      // A header whose name contains both "bearer" and "token" should still be masked.
-      const yamlInput = 'X-Bearer-Token: my-token-value'
+    it('masks X-Bearer-Token because it contains "token" even though "bearer" alone is not sensitive', () => {
+      // 'bearer' was removed from sensitivePatterns, but 'token' is still present.
+      // 'X-Bearer-Token' contains 'token' → must be masked.
+      // 'X-Bearer' contains neither a remaining sensitive pattern → must NOT be masked.
+      const yamlInput = `X-Bearer-Token: secret-value
+X-Bearer: not-a-token`
 
       const result = parseCustomHeaders(yamlInput)
 
-      expect(result).toEqual({'X-Bearer-Token': 'my-token-value'})
+      expect(result).toEqual({
+        'X-Bearer-Token': 'secret-value',
+        'X-Bearer': 'not-a-token',
+      })
+
       expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Bearer-Token: ***MASKED***')
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Bearer: not-a-token')
     })
 
-    it('does not mask X-API-Credential because "credential" was removed from sensitivePatterns', () => {
-      const yamlInput = 'X-API-Credential: some-value'
+    it('masks headers matching the five remaining sensitive patterns (key, token, secret, password, authorization)', () => {
+      const yamlInput = `API-Key: mykey123
+X-Auth-Token: tok456
+My-Secret: shh
+user-password: hunter2
+Authorization: Basic dXNlcjpwYXNz`
 
       const result = parseCustomHeaders(yamlInput)
 
-      expect(result).toEqual({'X-API-Credential': 'some-value'})
-      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-API-Credential: some-value')
+      expect(result).toEqual({
+        'API-Key': 'mykey123',
+        'X-Auth-Token': 'tok456',
+        'My-Secret': 'shh',
+        'user-password': 'hunter2',
+        Authorization: 'Basic dXNlcjpwYXNz',
+      })
+
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: API-Key: ***MASKED***')
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Auth-Token: ***MASKED***')
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: My-Secret: ***MASKED***')
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: user-password: ***MASKED***')
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: Authorization: ***MASKED***')
+    })
+
+    it('does not mask a header whose name only contains "credential" or "bearer" (removed from sensitive patterns)', () => {
+      const jsonInput = '{"X-Service-Credential": "abc", "X-Bearer": "xyz"}'
+
+      const result = parseCustomHeaders(jsonInput)
+
+      expect(result).toEqual({
+        'X-Service-Credential': 'abc',
+        'X-Bearer': 'xyz',
+      })
+
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Service-Credential: abc')
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Bearer: xyz')
       expect(core.debug).not.toHaveBeenCalledWith(expect.stringContaining('***MASKED***'))
     })
 

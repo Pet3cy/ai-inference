@@ -290,6 +290,35 @@ describe('main.ts', () => {
     expect(mockProcessExit).toHaveBeenCalledWith(1)
   })
 
+  it('fails with Path traversal detected when prompt-file contains directory traversal', async () => {
+    mockFileContent({})
+
+    mockInputs({
+      'prompt-file': '../../../etc/passwd',
+    })
+
+    await run()
+
+    expect(core.setFailed).toHaveBeenCalledWith(expect.stringContaining('Path traversal detected'))
+    expect(mockProcessExit).toHaveBeenCalledWith(1)
+    expect(mockSimpleInference).not.toHaveBeenCalled()
+  })
+
+  it('fails with Path traversal detected when system-prompt-file contains directory traversal', async () => {
+    mockFileContent({})
+
+    mockInputs({
+      prompt: 'Some prompt',
+      'system-prompt-file': '../../outside.txt',
+    })
+
+    await run()
+
+    expect(core.setFailed).toHaveBeenCalledWith(expect.stringContaining('Path traversal detected'))
+    expect(mockProcessExit).toHaveBeenCalledWith(1)
+    expect(mockSimpleInference).not.toHaveBeenCalled()
+  })
+
   it('creates temporary files that persist for downstream steps', async () => {
     mockInputs({
       prompt: 'Test prompt',
