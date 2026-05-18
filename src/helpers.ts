@@ -33,13 +33,13 @@ export function loadContentFromFileOrInput(filePathInput: string, contentInput: 
   const filePath = core.getInput(filePathInput)
   const contentString = core.getInput(contentInput)
 
-  if (filePath !== undefined && filePath !== '') {
+  if (filePath) {
     const safePath = validatePath(filePath)
     if (!fs.existsSync(safePath)) {
       throw new Error(`File for ${filePathInput} was not found: ${filePath}`)
     }
     return fs.readFileSync(safePath, 'utf-8')
-  } else if (contentString !== undefined && contentString !== '') {
+  } else if (contentString) {
     return contentString
   } else if (defaultValue !== undefined) {
     return defaultValue
@@ -100,7 +100,7 @@ export function buildResponseFormat(
  * @returns Record of header names to values, or empty object if invalid
  */
 export function parseCustomHeaders(input: string): Record<string, string> {
-  if (!input || input.trim() === '') {
+  if (!input?.trim()) {
     return {}
   }
 

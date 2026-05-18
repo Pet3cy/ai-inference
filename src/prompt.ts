@@ -82,14 +82,14 @@ export function parseFileTemplateVariables(fileInput: string): TemplateVariables
       throw new Error(`File template variable '${key}' must be a string file path`)
     }
     const safePath = validatePath(value)
-    if (!fs.existsSync(safePath)) {
-      throw new Error(`File for template variable '${key}' was not found: ${value}`)
-    }
     try {
       result[key] = fs.readFileSync(safePath, 'utf-8')
     } catch (err) {
+      const isNotFound = (err as NodeJS.ErrnoException)?.code === 'ENOENT'
       throw new Error(
-        `Failed to read file for template variable '${key}' at path '${value}': ${err instanceof Error ? err.message : 'Unknown error'}`,
+        isNotFound
+          ? `File for template variable '${key}' was not found: ${value}`
+          : `Failed to read file for template variable '${key}' at path '${value}': ${err instanceof Error ? err.message : 'Unknown error'}`,
       )
     }
   }
