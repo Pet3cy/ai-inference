@@ -125,14 +125,17 @@ describe('prompt.ts', () => {
 
     it('should throw error for invalid message role', () => {
       const filePath = path.join(__dirname, '../__fixtures__/prompts/invalid-role.prompt.yml')
-      expect(() => loadPromptFile(filePath)).toThrow('Failed to parse prompt file: Invalid message role: not_a_valid_role')
+      expect(() => loadPromptFile(filePath)).toThrow(
+        'Failed to parse prompt file: Invalid message role: not_a_valid_role',
+      )
     })
 
     it('should throw error for missing messages array', () => {
       const filePath = path.join(__dirname, '../__fixtures__/prompts/missing-messages.prompt.yml')
-      expect(() => loadPromptFile(filePath)).toThrow('Failed to parse prompt file: Prompt file must contain a "messages" array')
+      expect(() => loadPromptFile(filePath)).toThrow(
+        'Failed to parse prompt file: Prompt file must contain a "messages" array',
+      )
     })
-
   })
 
   describe('parseFileTemplateVariables', () => {
