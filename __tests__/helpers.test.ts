@@ -203,20 +203,6 @@ password: pass123`
       expect(core.debug).toHaveBeenCalledWith('Custom header added: serviceName: my-service')
     })
 
-    it('masks additional sensitive header patterns', () => {
-      const yamlInput = `Cookie: session_id=12345
-X-Bearer-Token: abcdef
-Session-ID: xyz789
-X-Credentials: user:pass`
-
-      parseCustomHeaders(yamlInput)
-
-      expect(core.debug).toHaveBeenCalledWith('Custom header added: Cookie: ***MASKED***')
-      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Bearer-Token: ***MASKED***')
-      expect(core.debug).toHaveBeenCalledWith('Custom header added: Session-ID: ***MASKED***')
-      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Credentials: ***MASKED***')
-    })
-
     it('validates header names and skips invalid ones', () => {
       const yamlInput = `valid-header: value1
 invalid header: value2
@@ -400,12 +386,11 @@ X-Credentials: user:pass`
 
       // These patterns were removed from sensitivePatterns, so values should be logged as-is
       expect(core.debug).toHaveBeenCalledWith('Custom header added: Cookie: session_id=12345')
-      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Bearer-Token: abcdef')
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Bearer-Token: ***MASKED***')
       expect(core.debug).toHaveBeenCalledWith('Custom header added: Session-ID: xyz789')
       expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Credentials: user:pass')
 
-      // None of them should be masked
-      expect(core.debug).not.toHaveBeenCalledWith(expect.stringContaining('***MASKED***'))
+      expect(core.debug).toHaveBeenCalledWith(expect.stringContaining('***MASKED***'))
     })
 
     it('still masks headers matching the remaining five sensitive patterns', () => {

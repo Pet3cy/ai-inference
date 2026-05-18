@@ -168,10 +168,7 @@ export async function mcpInference(
   core.warning(`GitHub MCP inference loop exceeded maximum iterations (${maxIterations})`)
 
   // Return the last assistant message content
-  const lastAssistantMessage = messages
-    .slice()
-    .reverse()
-    .find(msg => msg.role === 'assistant')
+  const lastAssistantMessage = messages.findLast(msg => msg.role === 'assistant')
 
   return lastAssistantMessage?.content || null
 }
