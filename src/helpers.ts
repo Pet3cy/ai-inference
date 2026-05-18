@@ -100,16 +100,15 @@ export function buildResponseFormat(
  * @returns Record of header names to values, or empty object if invalid
  */
 export function parseCustomHeaders(input: string): Record<string, string> {
-  if (!input?.trim()) {
+  const trimmedInput = input?.trim()
+  if (!trimmedInput) {
     return {}
   }
-
-  const trimmedInput = input.trim()
 
   try {
     // Try JSON first (check if it starts with { or [)
     if (trimmedInput.startsWith('{') || trimmedInput.startsWith('[')) {
-      const parsed = JSON.parse(trimmedInput)
+
       if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
         core.warning('Custom headers JSON must be an object, not null or an array')
         return {}
