@@ -39,15 +39,18 @@ export function parseTemplateVariables(input: string): TemplateVariables {
     return {}
   }
 
+  let parsed: unknown
   try {
-    const parsed = yaml.load(input) as TemplateVariables
-    if (typeof parsed !== 'object' || parsed === null) {
-      throw new Error('Template variables must be a YAML object')
-    }
-    return parsed
+    parsed = yaml.load(input)
   } catch (error) {
     throw new Error(`Failed to parse template variables: ${error instanceof Error ? error.message : 'Unknown error'}`)
   }
+
+  if (typeof parsed !== 'object' || parsed === null) {
+    throw new Error('Template variables must be a YAML object')
+  }
+
+  return parsed as TemplateVariables
 }
 
 /**
@@ -64,20 +67,21 @@ export function parseFileTemplateVariables(fileInput: string): TemplateVariables
     return {}
   }
 
-  let parsed: Record<string, unknown>
+  let parsed: unknown
   try {
-    parsed = yaml.load(fileInput) as Record<string, unknown>
-    if (typeof parsed !== 'object' || parsed === null) {
-      throw new Error('File template variables must be a YAML object')
-    }
+    parsed = yaml.load(fileInput)
   } catch (error) {
     throw new Error(
       `Failed to parse file template variables: ${error instanceof Error ? error.message : 'Unknown error'}`,
     )
   }
 
+  if (typeof parsed !== 'object' || parsed === null) {
+    throw new Error('File template variables must be a YAML object')
+  }
+
   const result: TemplateVariables = {}
-  for (const [key, value] of Object.entries(parsed)) {
+  for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
     if (typeof value !== 'string') {
       throw new Error(`File template variable '${key}' must be a string file path`)
     }
@@ -85,13 +89,14 @@ export function parseFileTemplateVariables(fileInput: string): TemplateVariables
     try {
       result[key] = fs.readFileSync(safePath, 'utf-8')
     } catch (err) {
-      const isNotFound = (err as NodeJS.ErrnoException)?.code === 'ENOENT'
+      const code = (err as NodeJS.ErrnoException)?.code
+      if (code === 'ENOENT') {
+        throw new Error(`File for template variable '${key}' was not found: ${value}`)
+      }
       throw new Error(
-        isNotFound
-          ? `File for template variable '${key}' was not found: ${value}`
-          : `Failed to read file for template variable '${key}' at path '${value}': ${err instanceof Error ? err.message : 'Unknown error'}`,
+        `Failed to read file for template variable '${key}' at path '${value}': ${err instanceof Error ? err.message : 'Unknown error'}`,
       )
-    }
+
   }
 
   return result
