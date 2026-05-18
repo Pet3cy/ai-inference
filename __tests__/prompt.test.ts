@@ -169,12 +169,27 @@ describe('prompt.ts', () => {
       expect(result).toEqual({})
     })
 
-    it('wraps YAML parse errors with a descriptive message', () => {
-      // A non-object YAML root value (e.g. a plain string) triggers the
-      // "File template variables must be a YAML object" error path.
-      expect(() => parseFileTemplateVariables('"just a string"')).toThrow(
-        'Failed to parse file template variables',
+    it('returns empty object for purely empty string', () => {
+      const result = parseFileTemplateVariables('')
+      expect(result).toEqual({})
+    })
+
+    it('throws a wrapped error when YAML is syntactically invalid', () => {
+      expect(() => parseFileTemplateVariables('invalid: yaml: content: :')).toThrow(
+        'Failed to parse file template variables:',
       )
+    })
+
+    it('throws when YAML root is null (not an object)', () => {
+      expect(() => parseFileTemplateVariables('null')).toThrow('Failed to parse file template variables:')
+    })
+
+    it('reads multiple file variables correctly', () => {
+      const configPath1 = path.join(__dirname, '../__fixtures__/prompts/json-schema.prompt.yml')
+      const configPath2 = path.join(__dirname, '../__fixtures__/prompts/simple.prompt.yml')
+      const data = parseFileTemplateVariables(`file1: ${configPath1}\nfile2: ${configPath2}`)
+      expect(data.file1).toContain('messages:')
+      expect(data.file2).toContain('messages:')
     })
   })
 })

@@ -265,17 +265,57 @@ describe('mcp.ts', () => {
       expect(mockCallTool).not.toHaveBeenCalled()
     })
 
-    it('executes a single tool call sequentially without issues', async () => {
-      const toolCalls = [{id: 'only-call', type: 'function', function: {name: 'solo-tool', arguments: '{}'}}]
+    it('returns a single-element array for a single tool call', async () => {
+      const toolCalls = [{id: 'solo-call', type: 'function', function: {name: 'solo-tool', arguments: '{}'}}]
 
-      mockCallTool.mockResolvedValueOnce({content: [{type: 'text', text: 'Solo result'}]})
+      mockCallTool.mockResolvedValue({content: [{type: 'text', text: 'solo result'}]})
 
       const results = await executeToolCalls(mockClient, toolCalls)
 
-      expect(mockCallTool).toHaveBeenCalledTimes(1)
       expect(results).toHaveLength(1)
-      expect(results[0].tool_call_id).toBe('only-call')
+      expect(results[0].tool_call_id).toBe('solo-call')
+      expect(results[0].role).toBe('tool')
       expect(results[0].name).toBe('solo-tool')
+      expect(mockCallTool).toHaveBeenCalledTimes(1)
+    })
+
+    it('result objects carry the correct role and name from their tool calls', async () => {
+      const toolCalls = [
+        {id: 'id-a', type: 'function', function: {name: 'alpha-tool', arguments: '{}'}},
+        {id: 'id-b', type: 'function', function: {name: 'beta-tool', arguments: '{}'}},
+      ]
+
+      mockCallTool
+        .mockResolvedValueOnce({content: [{type: 'text', text: 'alpha'}]})
+        .mockResolvedValueOnce({content: [{type: 'text', text: 'beta'}]})
+
+      const results = await executeToolCalls(mockClient, toolCalls)
+
+      expect(results[0]).toMatchObject({tool_call_id: 'id-a', role: 'tool', name: 'alpha-tool'})
+      expect(results[1]).toMatchObject({tool_call_id: 'id-b', role: 'tool', name: 'beta-tool'})
+    })
+
+    it('returns results in input order when a middle tool fails', async () => {
+      const toolCalls = [
+        {id: 'call-1', type: 'function', function: {name: 'tool-1', arguments: '{}'}},
+        {id: 'call-2', type: 'function', function: {name: 'tool-2', arguments: '{}'}},
+        {id: 'call-3', type: 'function', function: {name: 'tool-3', arguments: '{}'}},
+      ]
+
+      mockCallTool
+        .mockResolvedValueOnce({content: [{type: 'text', text: 'ok-1'}]})
+        .mockRejectedValueOnce(new Error('middle failure'))
+        .mockResolvedValueOnce({content: [{type: 'text', text: 'ok-3'}]})
+
+      const results = await executeToolCalls(mockClient, toolCalls)
+
+      expect(results).toHaveLength(3)
+      expect(results[0].tool_call_id).toBe('call-1')
+      expect(results[0].content).toContain('ok-1')
+      expect(results[1].tool_call_id).toBe('call-2')
+      expect(results[1].content).toContain('Error:')
+      expect(results[2].tool_call_id).toBe('call-3')
+      expect(results[2].content).toContain('ok-3')
     })
 
     it('executes tool calls sequentially (in order, not in parallel)', async () => {

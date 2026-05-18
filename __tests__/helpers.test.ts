@@ -72,10 +72,19 @@ describe('helpers.ts', () => {
       expect(result).toBe(path.resolve(process.cwd(), ''))
     })
 
-    it('allows an absolute path that is exactly cwd', () => {
+    it('allows an absolute path exactly equal to cwd', () => {
       const cwdPath = process.cwd()
       const result = validatePath(cwdPath)
       expect(result).toBe(cwdPath)
+    })
+
+    it('allows a deeply nested path entirely within cwd', () => {
+      const result = validatePath('a/b/c/d/e/file.txt')
+      expect(result).toBe(path.resolve(process.cwd(), 'a/b/c/d/e/file.txt'))
+    })
+
+    it('includes the offending input in the error message', () => {
+      expect(() => validatePath('../secret.txt')).toThrow('../secret.txt')
     })
   })
 
@@ -449,22 +458,25 @@ X-Bearer: only-bearer-no-token`
       expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Bearer: only-bearer-no-token')
     })
 
-    it('masks X-Bearer-Token via token pattern even though bearer alone is not sensitive', () => {
-      // 'bearer' was removed from sensitivePatterns, but 'token' remains.
-      // A header named 'X-Bearer-Token' contains the substring 'token', so it must be masked.
-      // A header named 'X-Bearer' (no 'token' substring) must not be masked.
-      const yamlInput = `X-Bearer-Token: secret-jwt
-X-Bearer: public-value`
+    it('masks X-Bearer-Token because it contains "token" (still in sensitivePatterns)', () => {
+      // "bearer" was removed from sensitivePatterns but "token" was not.
+      // A header whose name contains both "bearer" and "token" should still be masked.
+      const yamlInput = 'X-Bearer-Token: my-token-value'
 
       const result = parseCustomHeaders(yamlInput)
 
-      expect(result).toEqual({
-        'X-Bearer-Token': 'secret-jwt',
-        'X-Bearer': 'public-value',
-      })
-
+      expect(result).toEqual({'X-Bearer-Token': 'my-token-value'})
       expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Bearer-Token: ***MASKED***')
-      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Bearer: public-value')
+    })
+
+    it('does not mask X-API-Credential because "credential" was removed from sensitivePatterns', () => {
+      const yamlInput = 'X-API-Credential: some-value'
+
+      const result = parseCustomHeaders(yamlInput)
+
+      expect(result).toEqual({'X-API-Credential': 'some-value'})
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-API-Credential: some-value')
+      expect(core.debug).not.toHaveBeenCalledWith(expect.stringContaining('***MASKED***'))
     })
 
     it('handles complex real-world Azure APIM example', () => {
