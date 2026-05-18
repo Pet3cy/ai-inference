@@ -5,6 +5,7 @@ import * as core from '../__fixtures__/core.js'
 const mockExistsSync = vi.fn()
 const mockReadFileSync = vi.fn()
 const mockWriteFileSync = vi.fn()
+const mockReadFile = vi.fn()
 
 // Create inference mocks
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -19,6 +20,9 @@ vi.mock('fs', () => ({
   existsSync: mockExistsSync,
   readFileSync: mockReadFileSync,
   writeFileSync: mockWriteFileSync,
+  promises: {
+    readFile: mockReadFile,
+  },
 }))
 
 // Mock the inference functions
@@ -150,10 +154,14 @@ model: openai/gpt-4o
       if (path === 'test.prompt.yml') {
         return `messages:\n  - role: user\n    content: 'Here is the data: {{blob}}'\nmodel: openai/gpt-4o\n`
       }
-      if (path === externalFilePath) {
-        return 'FILE_CONTENTS'
-      }
       return ''
+    })
+
+    mockReadFile.mockImplementation((path: string) => {
+      if (path === externalFilePath) {
+        return Promise.resolve('FILE_CONTENTS')
+      }
+      return Promise.resolve('')
     })
 
     core.getInput.mockImplementation((name: string) => {

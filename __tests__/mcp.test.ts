@@ -369,5 +369,52 @@ describe('mcp.ts', () => {
       expect(results[0].content).toContain('Result 1')
       expect(results[1].content).toContain('Error:')
     })
+
+    it('executes tool calls concurrently, preserving input order in output', async () => {
+      const executionOrder: string[] = []
+
+      const toolCalls = [
+        {id: 'call-a', type: 'function', function: {name: 'tool-a', arguments: '{}'}},
+        {id: 'call-b', type: 'function', function: {name: 'tool-b', arguments: '{}'}},
+        {id: 'call-c', type: 'function', function: {name: 'tool-c', arguments: '{}'}},
+      ]
+
+      mockCallTool.mockImplementation(({name}: {name: string}) => {
+        executionOrder.push(name)
+        return Promise.resolve({content: [{type: 'text', text: `Result from ${name}`}]})
+      })
+
+      const results = await executeToolCalls(mockClient, toolCalls)
+
+      // Results must be in the same order as tool calls
+      expect(results).toHaveLength(3)
+      expect(results[0].tool_call_id).toBe('call-a')
+      expect(results[1].tool_call_id).toBe('call-b')
+      expect(results[2].tool_call_id).toBe('call-c')
+
+      // Execution order can be concurrent, results order must be preserved
+      expect(executionOrder).toEqual(['tool-a', 'tool-b', 'tool-c'])
+    })
+
+    it('executes tool calls concurrently', async () => {
+      const startTimes: number[] = []
+
+      mockCallTool.mockImplementation(async () => {
+        startTimes.push(Date.now())
+        await new Promise(r => setTimeout(r, 50))
+        return {content: []}
+      })
+
+      const toolCalls = [
+        {id: 'call-1', type: 'function', function: {name: 'tool-1', arguments: '{}'}},
+        {id: 'call-2', type: 'function', function: {name: 'tool-2', arguments: '{}'}},
+      ]
+
+      await executeToolCalls(mockClient, toolCalls)
+
+      // If concurrent, the gap between start times should be very small (< 50ms)
+      const gap = Math.abs(startTimes[1] - startTimes[0])
+      expect(gap).toBeLessThan(50)
+    })
   })
 })

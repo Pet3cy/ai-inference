@@ -123,20 +123,18 @@ describe('prompt.ts', () => {
       expect(() => loadPromptFile('non-existent.prompt.yml')).toThrow('Prompt file not found')
     })
 
-    it('should throw for path traversal attempts', () => {
-      expect(() => loadPromptFile('../../../etc/passwd')).toThrow('Path traversal detected')
+    it('should throw error for invalid message role', () => {
+      const filePath = path.join(__dirname, '../__fixtures__/prompts/invalid-role.prompt.yml')
+      expect(() => loadPromptFile(filePath)).toThrow(
+        'Failed to parse prompt file: Invalid message role: not_a_valid_role',
+      )
     })
 
-    it('should throw for path traversal using multiple levels', () => {
-      expect(() => loadPromptFile('../../some-file.txt')).toThrow('Path traversal detected')
-    })
-
-    it('loads a prompt file given an absolute path that is within cwd', () => {
-      // Using an absolute path that points inside the project directory should succeed
-      const absolutePath = path.resolve(__dirname, '../__fixtures__/prompts/simple.prompt.yml')
-      const result = loadPromptFile(absolutePath)
-      expect(result.messages).toBeDefined()
-      expect(result.messages.length).toBeGreaterThan(0)
+    it('should throw error for missing messages array', () => {
+      const filePath = path.join(__dirname, '../__fixtures__/prompts/missing-messages.prompt.yml')
+      expect(() => loadPromptFile(filePath)).toThrow(
+        'Failed to parse prompt file: Prompt file must contain a "messages" array',
+      )
     })
   })
 

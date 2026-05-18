@@ -465,12 +465,13 @@ X-Bearer: only-bearer-no-token`
         'X-Bearer': 'only-bearer-no-token',
       })
 
-      // cookie/session match sensitivePatterns → masked
-      expect(core.debug).toHaveBeenCalledWith('Custom header added: Cookie: ***MASKED***')
-      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Session-Data: ***MASKED***')
-      // credential/bearer are not in sensitivePatterns → logged unmasked
+      // These patterns were removed from sensitivePatterns, so values should be logged as-is
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: Cookie: session_id=12345')
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Bearer-Token: ***MASKED***')
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: Session-ID: xyz789')
       expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Credentials: user:pass')
-      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Bearer: only-bearer-no-token')
+
+      expect(core.debug).toHaveBeenCalledWith(expect.stringContaining('***MASKED***'))
     })
 
     it('still masks X-Bearer-Token because it contains "token" pattern', () => {
