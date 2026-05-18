@@ -139,27 +139,60 @@ describe('prompt.ts', () => {
   })
 
   describe('parseFileTemplateVariables', () => {
-    it('reads file contents for variables', async () => {
+    it('reads file contents for variables', () => {
       const configPath = path.join(__dirname, '../__fixtures__/prompts/json-schema.prompt.yml')
-      const data = await parseFileTemplateVariables(`sample: ${configPath}`)
+      const data = parseFileTemplateVariables(`sample: ${configPath}`)
       expect(data.sample).toContain('messages:')
       expect(data.sample).toContain('responseFormat:')
     })
 
-    it('errors on missing files', async () => {
-      await expect(parseFileTemplateVariables('x: ./does-not-exist.txt')).rejects.toThrow('was not found')
+    it('errors on missing files', () => {
+      expect(() => parseFileTemplateVariables('x: ./does-not-exist.txt')).toThrow('was not found')
     })
 
-    it('errors on non-string file paths', async () => {
-      await expect(parseFileTemplateVariables('x: 123')).rejects.toThrow(
+    it('errors on non-string file paths', () => {
+      expect(() => parseFileTemplateVariables('x: 123')).toThrow(
         "File template variable 'x' must be a string file path",
       )
-      await expect(parseFileTemplateVariables('x: true')).rejects.toThrow(
+      expect(() => parseFileTemplateVariables('x: true')).toThrow(
         "File template variable 'x' must be a string file path",
       )
-      await expect(parseFileTemplateVariables('x: { nested: "object" }')).rejects.toThrow(
+      expect(() => parseFileTemplateVariables('x: { nested: "object" }')).toThrow(
         "File template variable 'x' must be a string file path",
       )
+    })
+
+    it('throws for path traversal in file variable value', () => {
+      expect(() => parseFileTemplateVariables('x: ../../../etc/passwd')).toThrow('Path traversal detected')
+    })
+
+    it('throws for path traversal using multiple levels', () => {
+      expect(() => parseFileTemplateVariables('x: ../../some-file.txt')).toThrow('Path traversal detected')
+    })
+
+    it('returns empty object for empty input', () => {
+      const result = parseFileTemplateVariables('   ')
+      expect(result).toEqual({})
+    })
+
+    it('throws when root YAML value is not an object (e.g. a plain string)', () => {
+      expect(() => parseFileTemplateVariables('just a string')).toThrow('Failed to parse file template variables')
+    })
+
+    it('throws when one of multiple variables has a traversal path, even if others are valid', () => {
+      const configPath = path.join(__dirname, '../__fixtures__/prompts/json-schema.prompt.yml')
+      // 'valid' key points to a real file, 'bad' key attempts traversal
+      expect(() =>
+        parseFileTemplateVariables(`valid: ${configPath}\nbad: ../../../etc/passwd`),
+      ).toThrow('Path traversal detected')
+    })
+
+    it('reads multiple file variables and returns all contents', () => {
+      const configPath = path.join(__dirname, '../__fixtures__/prompts/json-schema.prompt.yml')
+      const simplePath = path.join(__dirname, '../__fixtures__/prompts/simple.prompt.yml')
+      const data = parseFileTemplateVariables(`schema: ${configPath}\nsimple: ${simplePath}`)
+      expect(data.schema).toContain('responseFormat:')
+      expect(data.simple).toContain('messages:')
     })
   })
 })
