@@ -10,3 +10,12 @@ export const setOutput = vi.fn<typeof core.setOutput>()
 export const setFailed = vi.fn<typeof core.setFailed>()
 export const warning = vi.fn<typeof core.warning>()
 export const setSecret = vi.fn<typeof core.setSecret>()
+
+const summaryMock = {
+  addHeading: vi.fn().mockReturnThis(),
+  addRaw: vi.fn().mockReturnThis(),
+  addSeparator: vi.fn().mockReturnThis(),
+  write: vi.fn().mockResolvedValue({}),
+}
+
+export const summary = summaryMock

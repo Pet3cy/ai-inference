@@ -129,6 +129,14 @@ export async function run(): Promise<void> {
 
     if (modelResponse && modelResponse !== '') {
       fs.writeFileSync(responseFile.name, modelResponse, 'utf-8')
+
+      // Add to job summary for immediate visibility
+      await core.summary
+        .addHeading('🤖 AI Inference Response')
+        .addRaw(`**Model:** \`${modelName}\``)
+        .addSeparator()
+        .addRaw(modelResponse)
+        .write()
     }
   } catch (error) {
     if (error instanceof Error) {
