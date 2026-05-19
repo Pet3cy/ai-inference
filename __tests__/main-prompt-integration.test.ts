@@ -1,5 +1,6 @@
 import {describe, it, expect, beforeEach, vi, type MockedFunction, type Mock} from 'vitest'
 import * as core from '../__fixtures__/core.js'
+import * as path from 'path'
 
 // Create fs mocks
 const mockExistsSync = vi.fn()
@@ -77,14 +78,20 @@ describe('main.ts - prompt.yml integration', () => {
     mockGetBooleanInput.mockReturnValue(false)
 
     // Mock fs.readFileSync for prompt file
-    mockReadFileSync.mockReturnValue(`
+    mockReadFileSync.mockImplementation((rawPath: string) => {
+      const resolvedPath = path.resolve(process.cwd(), rawPath)
+      if (resolvedPath === path.resolve(process.cwd(), 'test.prompt.yml')) {
+        return `
 messages:
   - role: system
     content: Be as concise as possible
   - role: user
     content: 'Compare {{a}} and {{b}}, please'
 model: openai/gpt-4o
-    `)
+    `
+      }
+      return ''
+    })
 
     // Mock fs.writeFileSync
     mockWriteFileSync.mockImplementation(() => {})
@@ -150,15 +157,17 @@ model: openai/gpt-4o
 
     // First call: reading the prompt file. Second call: reading file_input referenced file contents.
     const externalFilePath = 'vars.txt'
-    mockReadFileSync.mockImplementation((path: string) => {
-      if (path === 'test.prompt.yml') {
+    mockReadFileSync.mockImplementation((rawPath: string) => {
+      const resolvedPath = path.resolve(process.cwd(), rawPath)
+      if (resolvedPath === path.resolve(process.cwd(), 'test.prompt.yml')) {
         return `messages:\n  - role: user\n    content: 'Here is the data: {{blob}}'\nmodel: openai/gpt-4o\n`
       }
       return ''
     })
 
-    mockReadFile.mockImplementation((path: string) => {
-      if (path === externalFilePath) {
+    mockReadFile.mockImplementation((rawPath: string) => {
+      const resolvedPath = path.resolve(process.cwd(), rawPath)
+      if (resolvedPath === path.resolve(process.cwd(), externalFilePath)) {
         return Promise.resolve('FILE_CONTENTS')
       }
       return Promise.resolve('')

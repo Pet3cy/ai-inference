@@ -1,8 +1,27 @@
 import * as core from '@actions/core'
 import * as fs from 'fs'
+import * as path from 'path'
 import * as yaml from 'js-yaml'
 import {PromptConfig} from './prompt.js'
 import {InferenceRequest} from './inference.js'
+
+/**
+ * Validates that a path is within the current working directory.
+ * @param filePath - The path to validate
+ * @returns The resolved absolute path
+ * @throws Error if path traversal is detected
+ */
+export function validatePath(filePath: string): string {
+  const cwd = process.cwd()
+  const resolvedPath = path.resolve(cwd, filePath)
+  const relative = path.relative(cwd, resolvedPath)
+
+  if (relative.startsWith('..') || path.isAbsolute(relative)) {
+    throw new Error(`Path traversal detected: ${filePath}`)
+  }
+
+  return resolvedPath
+}
 
 /**
  * Helper function to load content from a file or use fallback input
@@ -16,10 +35,11 @@ export function loadContentFromFileOrInput(filePathInput: string, contentInput: 
   const contentString = core.getInput(contentInput)
 
   if (filePath !== undefined && filePath !== '') {
-    if (!fs.existsSync(filePath)) {
+    const validatedPath = validatePath(filePath)
+    if (!fs.existsSync(validatedPath)) {
       throw new Error(`File for ${filePathInput} was not found: ${filePath}`)
     }
-    return fs.readFileSync(filePath, 'utf-8')
+    return fs.readFileSync(validatedPath, 'utf-8')
   } else if (contentString !== undefined && contentString !== '') {
     return contentString
   } else if (defaultValue !== undefined) {
@@ -113,9 +133,9 @@ export function parseCustomHeaders(input: string): Record<string, string> {
 
 /**
  * Pre-compiled regex for sensitive header patterns to optimize lookups.
- * Removed 'cookie', 'bearer', 'session', and 'credential' to align with test expectations.
+ * Includes 'cookie', 'token', 'secret', 'password', 'authorization', 'credential', 'bearer', 'session'.
  */
-const SENSITIVE_HEADER_PATTERN = /key|token|secret|password|authorization/i
+const SENSITIVE_HEADER_PATTERN = /key|token|secret|password|authorization|cookie|credential|bearer|session/i
 
 /**
  * Validate header names and mask sensitive values in logs
