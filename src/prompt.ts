@@ -1,6 +1,7 @@
 import * as core from '@actions/core'
 import * as fs from 'fs'
 import * as yaml from 'js-yaml'
+import {validatePath} from './helpers.js'
 
 export interface PromptMessage {
   role: 'system' | 'user' | 'assistant'
@@ -89,19 +90,24 @@ export async function parseFileTemplateVariables(fileInput: string): Promise<Tem
     const batchResults = await Promise.all(
       batch.map(async ([key, filePath]): Promise<[string, string]> => {
         try {
-          const content = await fs.promises.readFile(filePath, 'utf-8')
+          const validatedPath = validatePath(filePath)
+          const content = await fs.promises.readFile(validatedPath, 'utf-8')
           return [key, content]
         } catch (err) {
           const code = (err as NodeJS.ErrnoException)?.code
           if (code === 'ENOENT') {
             throw new Error(`File for template variable '${key}' was not found: ${filePath}`)
           }
-          throw new Error(
-            `Failed to read file for template variable '${key}' at path '${filePath}': ${err instanceof Error ? err.message : 'Unknown error'}`,
-          )
+          throw err
         }
       }),
-    )
+    ).catch(error => {
+      // Re-wrap error with prefix if not already wrapped
+      if (error instanceof Error && !error.message.startsWith('Failed to parse file template variables:')) {
+        throw new Error(`Failed to parse file template variables: ${error.message}`)
+      }
+      throw error
+    })
 
     for (const [key, content] of batchResults) {
       result[key] = content
@@ -128,11 +134,12 @@ export function replaceTemplateVariables(text: string, variables: TemplateVariab
  * Load and parse a prompt YAML file with template variable substitution
  */
 export function loadPromptFile(filePath: string, templateVariables: TemplateVariables = {}): PromptConfig {
-  if (!fs.existsSync(filePath)) {
+  const validatedPath = validatePath(filePath)
+  if (!fs.existsSync(validatedPath)) {
     throw new Error(`Prompt file not found: ${filePath}`)
   }
 
-  const fileContent = fs.readFileSync(filePath, 'utf-8')
+  const fileContent = fs.readFileSync(validatedPath, 'utf-8')
 
   try {
     const config = yaml.load(fileContent) as PromptConfig

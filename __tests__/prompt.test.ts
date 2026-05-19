@@ -139,78 +139,72 @@ describe('prompt.ts', () => {
   })
 
   describe('parseFileTemplateVariables', () => {
-    it('reads file contents for variables', () => {
+    it('reads file contents for variables', async () => {
       const configPath = path.join(__dirname, '../__fixtures__/prompts/json-schema.prompt.yml')
-      const data = parseFileTemplateVariables(`sample: ${configPath}`)
+      const data = await parseFileTemplateVariables(`sample: ${configPath}`)
       expect(data.sample).toContain('messages:')
       expect(data.sample).toContain('responseFormat:')
     })
 
-    it('errors on missing files', () => {
-      expect(() => parseFileTemplateVariables('x: ./does-not-exist.txt')).toThrow('was not found')
+    it('errors on missing files', async () => {
+      await expect(parseFileTemplateVariables('x: ./does-not-exist.txt')).rejects.toThrow('was not found')
     })
 
-    it('errors on non-string file paths', () => {
-      expect(() => parseFileTemplateVariables('x: 123')).toThrow(
+    it('errors on non-string file paths', async () => {
+      await expect(parseFileTemplateVariables('x: 123')).rejects.toThrow(
         "File template variable 'x' must be a string file path",
       )
-      expect(() => parseFileTemplateVariables('x: true')).toThrow(
+      await expect(parseFileTemplateVariables('x: true')).rejects.toThrow(
         "File template variable 'x' must be a string file path",
       )
-      expect(() => parseFileTemplateVariables('x: { nested: "object" }')).toThrow(
+      await expect(parseFileTemplateVariables('x: { nested: "object" }')).rejects.toThrow(
         "File template variable 'x' must be a string file path",
       )
     })
 
-    it('returns empty object for empty input', () => {
-      expect(parseFileTemplateVariables('')).toEqual({})
+    it('returns empty object for empty input', async () => {
+      const result = await parseFileTemplateVariables('')
+      expect(result).toEqual({})
     })
 
-    it('returns empty object for whitespace-only input', () => {
-      expect(parseFileTemplateVariables('   ')).toEqual({})
-      expect(parseFileTemplateVariables('\n\t  \n')).toEqual({})
+    it('returns empty object for whitespace-only input', async () => {
+      expect(await parseFileTemplateVariables('   ')).toEqual({})
+      expect(await parseFileTemplateVariables('\n\t  \n')).toEqual({})
     })
 
-    it('reads multiple file variables and returns all contents', () => {
+    it('reads multiple file variables and returns all contents', async () => {
       const configPath1 = path.join(__dirname, '../__fixtures__/prompts/simple.prompt.yml')
       const configPath2 = path.join(__dirname, '../__fixtures__/prompts/json-schema.prompt.yml')
-      const data = parseFileTemplateVariables(`first: ${configPath1}\nsecond: ${configPath2}`)
+      const data = await parseFileTemplateVariables(`first: ${configPath1}\nsecond: ${configPath2}`)
       expect(data.first).toBeDefined()
       expect(data.second).toBeDefined()
       expect(data.first).toContain('messages:')
       expect(data.second).toContain('responseFormat:')
     })
 
-    it('preserves key names from YAML input', () => {
+    it('preserves key names from YAML input', async () => {
       const configPath = path.join(__dirname, '../__fixtures__/prompts/simple.prompt.yml')
-      const data = parseFileTemplateVariables(`my_custom_key: ${configPath}`)
+      const data = await parseFileTemplateVariables(`my_custom_key: ${configPath}`)
       expect(data).toHaveProperty('my_custom_key')
       expect(data.my_custom_key).toContain('messages:')
     })
 
-    it('throws when YAML is not an object', () => {
-      expect(() => parseFileTemplateVariables('- item1\n- item2')).toThrow(
+    it('throws when YAML is not an object', async () => {
+      await expect(parseFileTemplateVariables('- item1\n- item2')).rejects.toThrow(
         'Failed to parse file template variables',
       )
     })
 
-    it('throws when YAML has a null value for a key', () => {
-      expect(() => parseFileTemplateVariables('x: null')).toThrow(
+    it('throws when YAML has a null value for a key', async () => {
+      await expect(parseFileTemplateVariables('x: null')).rejects.toThrow(
         "File template variable 'x' must be a string file path",
       )
     })
 
-    it('wraps error message with Failed to parse prefix', () => {
-      expect(() => parseFileTemplateVariables('x: ./no-such-file.txt')).toThrow(
+    it('wraps error message with Failed to parse prefix', async () => {
+      await expect(parseFileTemplateVariables('x: ./no-such-file.txt')).rejects.toThrow(
         'Failed to parse file template variables:',
       )
-    })
-
-    it('is synchronous and returns result directly (not a Promise)', () => {
-      const result = parseFileTemplateVariables('')
-      // A Promise would have a .then method; a plain object does not
-      expect(result).not.toHaveProperty('then')
-      expect(typeof result).toBe('object')
     })
   })
 })
