@@ -118,6 +118,11 @@ export function parseCustomHeaders(input: string): Record<string, string> {
 const SENSITIVE_HEADER_PATTERN = /key|token|secret|password|authorization/i
 
 /**
+ * Pre-compiled regex for valid HTTP header names (RFC 7230).
+ */
+const HEADER_NAME_PATTERN = /^[A-Za-z0-9!#$%&'*+\-.^_`|~]+$/
+
+/**
  * Validate header names and mask sensitive values in logs
  * @param headers - Raw headers object
  * @returns Validated headers with string values
@@ -128,7 +133,7 @@ function validateAndMaskHeaders(headers: Record<string, unknown>): Record<string
   for (const [name, value] of Object.entries(headers)) {
     // Validate header name (RFC 7230: token = 1*tchar)
     // tchar = "!" / "#" / "$" / "%" / "&" / "'" / "*" / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~" / DIGIT / ALPHA
-    if (!/^[A-Za-z0-9!#$%&'*+\-.^_`|~]+$/.test(name)) {
+    if (!HEADER_NAME_PATTERN.test(name)) {
       core.warning(`Skipping invalid header name: ${name} (contains invalid characters)`)
       continue
     }
