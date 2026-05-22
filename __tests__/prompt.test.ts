@@ -189,9 +189,7 @@ describe('prompt.ts', () => {
     })
 
     it('throws when YAML is not an object', () => {
-      expect(() => parseFileTemplateVariables('- item1\n- item2')).toThrow(
-        'Failed to parse file template variables',
-      )
+      expect(() => parseFileTemplateVariables('- item1\n- item2')).toThrow('Failed to parse file template variables')
     })
 
     it('throws when YAML has a null value for a key', () => {
