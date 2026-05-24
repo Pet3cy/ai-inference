@@ -129,6 +129,13 @@ export async function run(): Promise<void> {
 
     if (modelResponse && modelResponse !== '') {
       fs.writeFileSync(responseFile.name, modelResponse, 'utf-8')
+
+      // Surface the response in the GitHub Job Summary
+      await core.summary
+        .addHeading('AI Inference Response')
+        .addRaw(modelResponse)
+        .addSeparator()
+        .write()
     }
   } catch (error) {
     if (error instanceof Error) {
