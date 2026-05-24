@@ -303,7 +303,7 @@ password: pass123`
       expect(core.debug).toHaveBeenCalledWith('Custom header added: serviceName: my-service')
     })
 
-    it('does not mask cookie headers (removed from sensitive patterns)', () => {
+    it('masks cookie and session headers', () => {
       const yamlInput = `Cookie: session_id=12345
 X-Session: my-session-data`
 
@@ -314,17 +314,11 @@ X-Session: my-session-data`
         'X-Session': 'my-session-data',
       })
 
-      // Cookie and Session patterns were removed - values should appear unmasked in logs
-      expect(core.debug).toHaveBeenCalledWith('Custom header added: Cookie: session_id=12345')
-      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Session: my-session-data')
-      expect(core.debug).not.toHaveBeenCalledWith('Custom header added: Cookie: ***MASKED***')
-      expect(core.debug).not.toHaveBeenCalledWith('Custom header added: X-Session: ***MASKED***')
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: Cookie: ***MASKED***')
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Session: ***MASKED***')
     })
 
-    it('does not mask bearer and credential headers (removed from sensitive patterns)', () => {
-      // "bearer" and "credential" were removed from sensitivePatterns.
-      // Note: X-Bearer-Token still contains "token" (still a sensitive pattern), so it IS masked.
-      // Use names that only contain the removed patterns, not any remaining ones.
+    it('masks bearer and credential headers', () => {
       const yamlInput = `X-Bearer-Auth: abcdef
 X-Credentials: user:pass`
 
@@ -335,11 +329,8 @@ X-Credentials: user:pass`
         'X-Credentials': 'user:pass',
       })
 
-      // Bearer and credential patterns were removed - values should appear unmasked in logs
-      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Bearer-Auth: abcdef')
-      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Credentials: user:pass')
-      expect(core.debug).not.toHaveBeenCalledWith('Custom header added: X-Bearer-Auth: ***MASKED***')
-      expect(core.debug).not.toHaveBeenCalledWith('Custom header added: X-Credentials: ***MASKED***')
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Bearer-Auth: ***MASKED***')
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Credentials: ***MASKED***')
     })
 
     it('still masks the five remaining sensitive patterns', () => {
@@ -500,12 +491,7 @@ header2: |
       )
     })
 
-    it('masks cookie/session header values in debug logs', () => {
-      // Cookie and session headers commonly carry authentication credentials,
-      // so their values must be masked in debug logs. The "credential" and
-      // "bearer" substrings are not in sensitivePatterns, so headers whose
-      // names contain those substrings (and nothing else sensitive) are
-      // logged in the clear.
+    it('masks cookie/session/credential/bearer header values in debug logs', () => {
       const yamlInput = `Cookie: session_id=12345
 X-Session-Data: xyz789
 X-Credentials: user:pass
@@ -520,13 +506,10 @@ X-Bearer: only-bearer-no-token`
         'X-Bearer': 'only-bearer-no-token',
       })
 
-      // These patterns were removed from sensitivePatterns, so values should be logged as-is
-      expect(core.debug).toHaveBeenCalledWith('Custom header added: Cookie: session_id=12345')
-      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Bearer-Token: ***MASKED***')
-      expect(core.debug).toHaveBeenCalledWith('Custom header added: Session-ID: xyz789')
-      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Credentials: user:pass')
-
-      expect(core.debug).toHaveBeenCalledWith(expect.stringContaining('***MASKED***'))
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: Cookie: ***MASKED***')
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Session-Data: ***MASKED***')
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Credentials: ***MASKED***')
+      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Bearer: ***MASKED***')
     })
 
     it('still masks X-Bearer-Token because it contains "token" pattern', () => {
@@ -538,16 +521,6 @@ X-Bearer: only-bearer-no-token`
 
       expect(result).toEqual({'X-Bearer-Token': 'abc123'})
       expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Bearer-Token: ***MASKED***')
-    })
-
-    it('does not mask a header whose name only contains "bearer" (bearer not in sensitivePatterns)', () => {
-      const yamlInput = 'X-Bearer: my-value'
-
-      const result = parseCustomHeaders(yamlInput)
-
-      expect(result).toEqual({'X-Bearer': 'my-value'})
-      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Bearer: my-value')
-      expect(core.debug).not.toHaveBeenCalledWith(expect.stringContaining('***MASKED***'))
     })
 
     it('handles complex real-world Azure APIM example', () => {
