@@ -1,5 +1,6 @@
 import {vi, describe, expect, it, beforeEach, type MockedFunction} from 'vitest'
 import * as core from '../__fixtures__/core.js'
+import * as path from 'path'
 
 // Default to throwing errors to catch unexpected calls
 const mockExistsSync = vi.fn().mockImplementation(() => {
@@ -16,22 +17,28 @@ const mockWriteFileSync = vi.fn()
  * @param nonExistentFiles - Array of file paths that should be treated as non-existent
  */
 function mockFileContent(fileContents: Record<string, string> = {}, nonExistentFiles: string[] = []): void {
+  // Resolve paths for comparison because the helper now uses absolute paths
+  const resolvedContents = Object.fromEntries(
+    Object.entries(fileContents).map(([p, content]) => [path.resolve(process.cwd(), p), content]),
+  )
+  const resolvedNonExistent = nonExistentFiles.map(p => path.resolve(process.cwd(), p))
+
   // Mock existsSync to return true for files that exist, false for those that don't
   mockExistsSync.mockImplementation((...args: unknown[]): boolean => {
-    const [path] = args as [string]
-    if (nonExistentFiles.includes(path)) {
+    const [p] = args as [string]
+    if (resolvedNonExistent.includes(p)) {
       return false
     }
-    return path in fileContents || true
+    return p in resolvedContents || true
   })
 
   // Mock readFileSync to return the content for known files
   mockReadFileSync.mockImplementation((...args: unknown[]): string => {
-    const [path, options] = args as [string, BufferEncoding]
-    if (options === 'utf-8' && path in fileContents) {
-      return fileContents[path]
+    const [p, options] = args as [string, BufferEncoding]
+    if (options === 'utf-8' && p in resolvedContents) {
+      return resolvedContents[p]
     }
-    throw new Error(`Unexpected file read: ${path}`)
+    throw new Error(`Unexpected file read: ${p}`)
   })
 }
 

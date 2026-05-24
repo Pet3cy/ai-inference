@@ -41,7 +41,9 @@ export function parseTemplateVariables(input: string): TemplateVariables {
     }
     return parsed
   } catch (error) {
-    throw new Error(`Failed to parse template variables: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    throw new Error(`Failed to parse template variables: ${error instanceof Error ? error.message : 'Unknown error'}`, {
+      cause: error,
+    })
   }
 }
 
@@ -59,24 +61,19 @@ export async function parseFileTemplateVariables(fileInput: string): Promise<Tem
 
   // Parse and validate YAML structure synchronously up-front so user-input errors
   // surface immediately and consistently with the previous (sync) implementation.
-  let entries: Array<[string, string]>
-  try {
-    const parsed = yaml.load(fileInput) as Record<string, unknown>
-    if (typeof parsed !== 'object' || parsed === null) {
-      throw new Error('File template variables must be a YAML object')
-    }
+  const entries: Array<[string, string]> = []
+  const parsed = yaml.load(fileInput) as Record<string, unknown>
+  if (typeof parsed !== 'object' || parsed === null) {
+    throw new Error('Failed to parse file template variables: File template variables must be a YAML object')
+  }
 
-    entries = []
-    for (const [key, value] of Object.entries(parsed)) {
-      if (typeof value !== 'string') {
-        throw new Error(`File template variable '${key}' must be a string file path`)
-      }
-      entries.push([key, value])
+  for (const [key, value] of Object.entries(parsed)) {
+    if (typeof value !== 'string') {
+      throw new Error(
+        `Failed to parse file template variables: File template variable '${key}' must be a string file path`,
+      )
     }
-  } catch (error) {
-    throw new Error(
-      `Failed to parse file template variables: ${error instanceof Error ? error.message : 'Unknown error'}`,
-    )
+    entries.push([key, value])
   }
 
   // Read files in batches with non-blocking async I/O. Batching prevents opening
@@ -94,10 +91,14 @@ export async function parseFileTemplateVariables(fileInput: string): Promise<Tem
         } catch (err) {
           const code = (err as NodeJS.ErrnoException)?.code
           if (code === 'ENOENT') {
-            throw new Error(`File for template variable '${key}' was not found: ${filePath}`)
+            throw new Error(
+              `Failed to parse file template variables: File for template variable '${key}' was not found: ${filePath}`,
+              {cause: err},
+            )
           }
           throw new Error(
-            `Failed to read file for template variable '${key}' at path '${filePath}': ${err instanceof Error ? err.message : 'Unknown error'}`,
+            `Failed to parse file template variables: Failed to read file for template variable '${key}' at path '${filePath}': ${err instanceof Error ? err.message : 'Unknown error'}`,
+            {cause: err},
           )
         }
       }),
@@ -112,10 +113,22 @@ export async function parseFileTemplateVariables(fileInput: string): Promise<Tem
 }
 
 /**
- * Replace template variables in text using {{variable}} syntax
+ * Pre-compiled regex for template variable replacement to avoid repeated compilation.
+ */
+const TEMPLATE_VARIABLE_REGEX = /\{\{([\w.-]+)\}\}/g
+
+/**
+ * Replace template variables in text using {{variable}} syntax.
+ *
+ * Includes a fast-path check for strings without placeholders to skip regex overhead.
  */
 export function replaceTemplateVariables(text: string, variables: TemplateVariables): string {
-  return text.replace(/\{\{([\w.-]+)\}\}/g, (match, variableName) => {
+  // Performance optimization: skip regex for text that doesn't contain placeholders
+  if (!text.includes('{{')) {
+    return text
+  }
+
+  return text.replace(TEMPLATE_VARIABLE_REGEX, (match, variableName) => {
     if (variableName in variables) {
       return variables[variableName]
     }
@@ -161,7 +174,9 @@ export function loadPromptFile(filePath: string, templateVariables: TemplateVari
 
     return config
   } catch (error) {
-    throw new Error(`Failed to parse prompt file: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    throw new Error(`Failed to parse prompt file: ${error instanceof Error ? error.message : 'Unknown error'}`, {
+      cause: error,
+    })
   }
 }
 

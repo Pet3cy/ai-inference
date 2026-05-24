@@ -195,6 +195,7 @@ async function chatCompletion(
       } catch (e) {
         throw new Error(
           `${context}: Chat completion response was a string and not valid JSON (${(e as Error).message})`,
+          {cause: e},
         )
       }
     }
