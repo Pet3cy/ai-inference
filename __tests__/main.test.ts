@@ -11,34 +11,39 @@ const mockReadFileSync = vi.fn().mockImplementation(() => {
 })
 const mockWriteFileSync = vi.fn()
 
+import * as path from 'path'
+
 /**
  * Helper function to mock file system operations for one or more files
  * @param fileContents - Object mapping file paths to their contents
  * @param nonExistentFiles - Array of file paths that should be treated as non-existent
  */
 function mockFileContent(fileContents: Record<string, string> = {}, nonExistentFiles: string[] = []): void {
-  // Resolve paths for comparison because the helper now uses absolute paths
-  const resolvedContents = Object.fromEntries(
-    Object.entries(fileContents).map(([p, content]) => [path.resolve(process.cwd(), p), content]),
-  )
+  const resolvedContents: Record<string, string> = {}
+  for (const [p, content] of Object.entries(fileContents)) {
+    resolvedContents[path.resolve(process.cwd(), p)] = content
+  }
+
   const resolvedNonExistent = nonExistentFiles.map(p => path.resolve(process.cwd(), p))
 
   // Mock existsSync to return true for files that exist, false for those that don't
   mockExistsSync.mockImplementation((...args: unknown[]): boolean => {
     const [p] = args as [string]
-    if (resolvedNonExistent.includes(p)) {
+    const resolvedP = path.isAbsolute(p) ? p : path.resolve(process.cwd(), p)
+    if (resolvedNonExistent.includes(resolvedP)) {
       return false
     }
-    return p in resolvedContents || true
+    return resolvedP in resolvedContents || true
   })
 
   // Mock readFileSync to return the content for known files
   mockReadFileSync.mockImplementation((...args: unknown[]): string => {
     const [p, options] = args as [string, BufferEncoding]
-    if (options === 'utf-8' && p in resolvedContents) {
-      return resolvedContents[p]
+    const resolvedP = path.isAbsolute(p) ? p : path.resolve(process.cwd(), p)
+    if (options === 'utf-8' && resolvedP in resolvedContents) {
+      return resolvedContents[resolvedP]
     }
-    throw new Error(`Unexpected file read: ${p}`)
+    throw new Error(`Unexpected file read: ${resolvedP}`)
   })
 }
 

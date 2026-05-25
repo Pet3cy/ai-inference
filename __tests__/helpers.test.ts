@@ -303,7 +303,7 @@ password: pass123`
       expect(core.debug).toHaveBeenCalledWith('Custom header added: serviceName: my-service')
     })
 
-    it('masks cookie headers', () => {
+    it('masks cookie and session headers', () => {
       const yamlInput = `Cookie: session_id=12345
 X-Session: my-session-data`
 
@@ -491,9 +491,7 @@ header2: |
       )
     })
 
-    it('masks cookie/session header values in debug logs', () => {
-      // Cookie and session headers commonly carry authentication credentials,
-      // so their values must be masked in debug logs.
+    it('masks cookie/session/credential/bearer header values in debug logs', () => {
       const yamlInput = `Cookie: session_id=12345
 X-Session-Data: xyz789
 X-Credentials: user:pass
@@ -523,15 +521,6 @@ X-Bearer: only-bearer-no-token`
 
       expect(result).toEqual({'X-Bearer-Token': 'abc123'})
       expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Bearer-Token: ***MASKED***')
-    })
-
-    it('masks a header whose name contains "bearer"', () => {
-      const yamlInput = 'X-Bearer: my-value'
-
-      const result = parseCustomHeaders(yamlInput)
-
-      expect(result).toEqual({'X-Bearer': 'my-value'})
-      expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Bearer: ***MASKED***')
     })
 
     it('handles complex real-world Azure APIM example', () => {

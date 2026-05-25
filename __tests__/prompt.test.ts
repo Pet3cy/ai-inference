@@ -206,9 +206,8 @@ describe('prompt.ts', () => {
       )
     })
 
-    it('is asynchronous and returns a Promise', () => {
+    it('returns a Promise', () => {
       const result = parseFileTemplateVariables('')
-      // A Promise has a .then method
       expect(result).toHaveProperty('then')
     })
   })
