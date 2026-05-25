@@ -89,7 +89,9 @@ export function buildResponseFormat(
         json_schema: schema,
       }
     } catch (error) {
-      throw new Error(`Invalid JSON schema: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      throw new Error(`Invalid JSON schema: ${error instanceof Error ? error.message : 'Unknown error'}`, {
+        cause: error,
+      })
     }
   }
   return undefined

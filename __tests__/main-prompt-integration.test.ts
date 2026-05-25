@@ -1,6 +1,7 @@
 import {describe, it, expect, beforeEach, vi, type MockedFunction, type Mock} from 'vitest'
 import * as path from 'path'
 import * as core from '../__fixtures__/core.js'
+import * as path from 'path'
 
 // Create fs mocks
 const mockExistsSync = vi.fn()
@@ -78,14 +79,20 @@ describe('main.ts - prompt.yml integration', () => {
     mockGetBooleanInput.mockReturnValue(false)
 
     // Mock fs.readFileSync for prompt file
-    mockReadFileSync.mockReturnValue(`
+    mockReadFileSync.mockImplementation((p: string) => {
+      const resolvedP = path.isAbsolute(p) ? p : path.resolve(process.cwd(), p)
+      if (resolvedP.endsWith('test.prompt.yml')) {
+        return `
 messages:
   - role: system
     content: Be as concise as possible
   - role: user
     content: 'Compare {{a}} and {{b}}, please'
 model: openai/gpt-4o
-    `)
+    `
+      }
+      return ''
+    })
 
     // Mock fs.writeFileSync
     mockWriteFileSync.mockImplementation(() => {})
@@ -166,8 +173,8 @@ model: openai/gpt-4o
     })
 
     mockReadFile.mockImplementation((p: string) => {
-      const resolved = path.resolve(process.cwd(), p)
-      if (resolved.endsWith(externalFilePath)) {
+      const resolvedP = path.isAbsolute(p) ? p : path.resolve(process.cwd(), p)
+      if (resolvedP === resolvedExternalPath) {
         return Promise.resolve('FILE_CONTENTS')
       }
       return Promise.resolve('')

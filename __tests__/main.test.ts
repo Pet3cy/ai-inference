@@ -1,6 +1,7 @@
 import {vi, describe, expect, it, beforeEach, type MockedFunction} from 'vitest'
 import * as path from 'path'
 import * as core from '../__fixtures__/core.js'
+import * as path from 'path'
 
 // Default to throwing errors to catch unexpected calls
 const mockExistsSync = vi.fn().mockImplementation(() => {
@@ -10,6 +11,8 @@ const mockReadFileSync = vi.fn().mockImplementation(() => {
   throw new Error('Unexpected call to readFileSync - test should override this implementation')
 })
 const mockWriteFileSync = vi.fn()
+
+import * as path from 'path'
 
 /**
  * Helper function to mock file system operations for one or more files
@@ -78,6 +81,12 @@ function mockInputs(inputs: Record<string, string> = {}): void {
 function verifyStandardResponse(): void {
   expect(core.setOutput).toHaveBeenNthCalledWith(1, 'response', 'Hello, user!')
   expect(core.setOutput).toHaveBeenNthCalledWith(2, 'response-file', expect.stringContaining('modelResponse-'))
+
+  // Verify summary was updated
+  expect(core.summary.addHeading).toHaveBeenCalledWith('AI Inference Response')
+  expect(core.summary.addRaw).toHaveBeenCalledWith('Hello, user!')
+  expect(core.summary.addSeparator).toHaveBeenCalled()
+  expect(core.summary.write).toHaveBeenCalled()
 }
 
 vi.mock('fs', () => ({
@@ -317,6 +326,12 @@ describe('main.ts', () => {
 
     expect(core.setOutput).toHaveBeenNthCalledWith(2, 'response-file', '/secure/temp/dir/modelResponse-abc123.txt')
     expect(mockWriteFileSync).toHaveBeenCalledWith('/secure/temp/dir/modelResponse-abc123.txt', 'Hello, user!', 'utf-8')
+
+    // Verify job summary
+    expect(core.summary.addHeading).toHaveBeenCalledWith('AI Inference Response')
+    expect(core.summary.addRaw).toHaveBeenCalledWith('Hello, user!')
+    expect(core.summary.addSeparator).toHaveBeenCalled()
+    expect(core.summary.write).toHaveBeenCalled()
 
     expect(mockProcessExit).toHaveBeenCalledWith(0)
   })

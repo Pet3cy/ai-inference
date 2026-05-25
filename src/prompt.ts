@@ -42,7 +42,9 @@ export function parseTemplateVariables(input: string): TemplateVariables {
     }
     return parsed
   } catch (error) {
-    throw new Error(`Failed to parse template variables: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    throw new Error(`Failed to parse template variables: ${error instanceof Error ? error.message : 'Unknown error'}`, {
+      cause: error,
+    })
   }
 }
 
@@ -67,16 +69,16 @@ export async function parseFileTemplateVariables(fileInput: string): Promise<Tem
       throw new Error('File template variables must be a YAML object')
     }
 
-    entries = []
-    for (const [key, value] of Object.entries(parsed)) {
-      if (typeof value !== 'string') {
-        throw new Error(`File template variable '${key}' must be a string file path`)
-      }
-      entries.push([key, value])
+  for (const [key, value] of Object.entries(parsed)) {
+    if (typeof value !== 'string') {
+      throw new Error(
+        `Failed to parse file template variables: File template variable '${key}' must be a string file path`,
+      )
     }
   } catch (error) {
     throw new Error(
       `Failed to parse file template variables: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      {cause: error},
     )
   }
 
@@ -120,10 +122,24 @@ export async function parseFileTemplateVariables(fileInput: string): Promise<Tem
 }
 
 /**
- * Replace template variables in text using {{variable}} syntax
+ * Pre-compiled regex for template variable replacement to avoid repeated compilation.
+ */
+const TEMPLATE_VARIABLE_REGEX = /\{\{([\w.-]+)\}\}/g
+
+/**
+ * Replace template variables in text using {{variable}} syntax.
+ *
+ * Performance optimization: Includes a guard clause to skip regex processing for strings
+ * that do not contain any template placeholders ('{{'). This significantly improves
+ * performance for large static content.
  */
 export function replaceTemplateVariables(text: string, variables: TemplateVariables): string {
-  return text.replace(/\{\{([\w.-]+)\}\}/g, (match, variableName) => {
+  // Guard clause: if no double-braces are present, skip the expensive regex replacement
+  if (!text.includes('{{')) {
+    return text
+  }
+
+  return text.replace(TEMPLATE_VARIABLE_REGEX, (match, variableName) => {
     if (variableName in variables) {
       return variables[variableName]
     }
@@ -170,7 +186,9 @@ export function loadPromptFile(filePath: string, templateVariables: TemplateVari
 
     return config
   } catch (error) {
-    throw new Error(`Failed to parse prompt file: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    throw new Error(`Failed to parse prompt file: ${error instanceof Error ? error.message : 'Unknown error'}`, {
+      cause: error,
+    })
   }
 }
 
