@@ -1,3 +1,8 @@
-## 2025-05-14 - Surfacing AI Responses in Job Summary
-**Learning:** Surfacing primary results (like AI inference output) in the GitHub Job Summary significantly improves visibility and user experience compared to searching through raw logs.
-**Action:** Identify key outputs in GitHub Actions and use `core.summary` to present them prominently on the workflow run page.
+# Palette's Journal - UX & Accessibility Learnings
+
+This journal tracks critical UX and accessibility learnings.
+
+## 2025-05-14 - Surfacing AI responses in GitHub Job Summary
+
+**Learning:** Surfacing primary results (e.g., AI inference output) in the GitHub Job Summary via `core.summary` significantly improves user visibility and experience compared to deep-diving into logs.
+**Action:** Always consider if the primary output of an action should be highlighted in the Job Summary for better accessibility and UX.

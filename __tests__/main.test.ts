@@ -79,6 +79,12 @@ function mockInputs(inputs: Record<string, string> = {}): void {
 function verifyStandardResponse(): void {
   expect(core.setOutput).toHaveBeenNthCalledWith(1, 'response', 'Hello, user!')
   expect(core.setOutput).toHaveBeenNthCalledWith(2, 'response-file', expect.stringContaining('modelResponse-'))
+
+  // Verify summary was updated
+  expect(core.summary.addHeading).toHaveBeenCalledWith('AI Inference Response')
+  expect(core.summary.addRaw).toHaveBeenCalledWith('Hello, user!')
+  expect(core.summary.addSeparator).toHaveBeenCalled()
+  expect(core.summary.write).toHaveBeenCalled()
 }
 
 vi.mock('fs', () => ({

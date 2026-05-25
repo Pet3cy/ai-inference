@@ -188,10 +188,8 @@ describe('prompt.ts', () => {
       expect(data.my_custom_key).toContain('messages:')
     })
 
-    it('throws when YAML is not an object', async () => {
-      await expect(parseFileTemplateVariables('- item1\n- item2')).rejects.toThrow(
-        'Failed to parse file template variables',
-      )
+    it('throws when YAML is not an object', () => {
+      expect(() => parseFileTemplateVariables('- item1\n- item2')).toThrow('Failed to parse file template variables')
     })
 
     it('throws when YAML has a null value for a key', async () => {

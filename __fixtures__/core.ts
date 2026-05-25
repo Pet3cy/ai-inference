@@ -16,6 +16,4 @@ export const summary = {
   addRaw: vi.fn().mockReturnThis(),
   addSeparator: vi.fn().mockReturnThis(),
   write: vi.fn().mockResolvedValue({}),
-  clear: vi.fn().mockReturnThis(),
-  stringify: vi.fn().mockReturnValue(''),
 }
