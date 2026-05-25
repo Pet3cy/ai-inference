@@ -127,14 +127,10 @@ export async function parseFileTemplateVariables(fileInput: string): Promise<Tem
 const TEMPLATE_VARIABLE_REGEX = /\{\{([\w.-]+)\}\}/g
 
 /**
- * Replace template variables in text using {{variable}} syntax.
- *
- * Performance optimization: Includes a guard clause to skip regex processing for strings
- * that do not contain any template placeholders ('{{'). This significantly improves
- * performance for large static content.
+ * Replace template variables in text using {{variable}} syntax
  */
 export function replaceTemplateVariables(text: string, variables: TemplateVariables): string {
-  // Guard clause: if no double-braces are present, skip the expensive regex replacement
+  // Performance optimization: skip regex if no placeholders are present
   if (!text.includes('{{')) {
     return text
   }
