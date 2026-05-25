@@ -1,3 +1,5 @@
-## 2025-05-15 - Surfacing results in Job Summary
-**Learning:** Surfacing primary results (e.g., AI inference output) in the GitHub Job Summary via `core.summary` significantly improves user visibility and experience compared to deep-diving into logs.
-**Action:** Use `core.summary` for primary outputs in GitHub Actions to provide immediate value to users.
+# Palette's Journal - AI Inference in GitHub Actions
+
+## 2025-05-14 - Initial Setup
+**Learning:** Palette agent initialized. Focus on small touches of delight and accessibility.
+**Action:** Always check branding and job summaries for immediate UX wins.
