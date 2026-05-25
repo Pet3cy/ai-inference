@@ -1,5 +1,6 @@
 import {vi, describe, expect, it, beforeEach, type MockedFunction} from 'vitest'
 import * as core from '../__fixtures__/core.js'
+import * as path from 'path'
 
 // Default to throwing errors to catch unexpected calls
 const mockExistsSync = vi.fn().mockImplementation(() => {
@@ -10,28 +11,39 @@ const mockReadFileSync = vi.fn().mockImplementation(() => {
 })
 const mockWriteFileSync = vi.fn()
 
+import * as path from 'path'
+
 /**
  * Helper function to mock file system operations for one or more files
  * @param fileContents - Object mapping file paths to their contents
  * @param nonExistentFiles - Array of file paths that should be treated as non-existent
  */
 function mockFileContent(fileContents: Record<string, string> = {}, nonExistentFiles: string[] = []): void {
+  const resolvedContents: Record<string, string> = {}
+  for (const [p, content] of Object.entries(fileContents)) {
+    resolvedContents[path.resolve(process.cwd(), p)] = content
+  }
+
+  const resolvedNonExistent = nonExistentFiles.map(p => path.resolve(process.cwd(), p))
+
   // Mock existsSync to return true for files that exist, false for those that don't
   mockExistsSync.mockImplementation((...args: unknown[]): boolean => {
-    const [path] = args as [string]
-    if (nonExistentFiles.includes(path)) {
+    const [p] = args as [string]
+    const resolvedP = path.isAbsolute(p) ? p : path.resolve(process.cwd(), p)
+    if (resolvedNonExistent.includes(resolvedP)) {
       return false
     }
-    return path in fileContents || true
+    return resolvedP in resolvedContents || true
   })
 
   // Mock readFileSync to return the content for known files
   mockReadFileSync.mockImplementation((...args: unknown[]): string => {
-    const [path, options] = args as [string, BufferEncoding]
-    if (options === 'utf-8' && path in fileContents) {
-      return fileContents[path]
+    const [p, options] = args as [string, BufferEncoding]
+    const resolvedP = path.isAbsolute(p) ? p : path.resolve(process.cwd(), p)
+    if (options === 'utf-8' && resolvedP in resolvedContents) {
+      return resolvedContents[resolvedP]
     }
-    throw new Error(`Unexpected file read: ${path}`)
+    throw new Error(`Unexpected file read: ${resolvedP}`)
   })
 }
 
@@ -312,6 +324,12 @@ describe('main.ts', () => {
 
     expect(core.setOutput).toHaveBeenNthCalledWith(2, 'response-file', '/secure/temp/dir/modelResponse-abc123.txt')
     expect(mockWriteFileSync).toHaveBeenCalledWith('/secure/temp/dir/modelResponse-abc123.txt', 'Hello, user!', 'utf-8')
+
+    // Verify job summary
+    expect(core.summary.addHeading).toHaveBeenCalledWith('AI Inference Response')
+    expect(core.summary.addRaw).toHaveBeenCalledWith('Hello, user!')
+    expect(core.summary.addSeparator).toHaveBeenCalled()
+    expect(core.summary.write).toHaveBeenCalled()
 
     expect(mockProcessExit).toHaveBeenCalledWith(0)
   })

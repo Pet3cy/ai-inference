@@ -265,19 +265,9 @@ describe('mcp.ts', () => {
       expect(mockCallTool).not.toHaveBeenCalled()
     })
 
-    it('executes tool calls sequentially (in order, not in parallel)', async () => {
+    it('executes tool calls in parallel', async () => {
       const executionOrder: string[] = []
       const flush = () => new Promise<void>(resolve => setImmediate(resolve))
-
-      let releaseFirst!: () => void
-      const firstGate = new Promise<void>(resolve => {
-        releaseFirst = resolve
-      })
-
-      let releaseSecond!: () => void
-      const secondGate = new Promise<void>(resolve => {
-        releaseSecond = resolve
-      })
 
       const toolCalls = [
         {id: 'call-1', type: 'function', function: {name: 'tool-1', arguments: '{}'}},
@@ -285,49 +275,23 @@ describe('mcp.ts', () => {
         {id: 'call-3', type: 'function', function: {name: 'tool-3', arguments: '{}'}},
       ]
 
-      mockCallTool
-        .mockImplementationOnce(async ({name}: {name: string}) => {
-          executionOrder.push(`${name}-start`)
-          await firstGate
-          executionOrder.push(`${name}-end`)
-          return {content: [{type: 'text', text: `Result from ${name}`}]}
-        })
-        .mockImplementationOnce(async ({name}: {name: string}) => {
-          executionOrder.push(`${name}-start`)
-          await secondGate
-          executionOrder.push(`${name}-end`)
-          return {content: [{type: 'text', text: `Result from ${name}`}]}
-        })
-        .mockImplementationOnce(async ({name}: {name: string}) => {
-          executionOrder.push(`${name}-start`)
-          executionOrder.push(`${name}-end`)
-          return {content: [{type: 'text', text: `Result from ${name}`}]}
-        })
+      mockCallTool.mockImplementation(async ({name}: {name: string}) => {
+        executionOrder.push(`${name}-start`)
+        await new Promise(resolve => setTimeout(resolve, 10))
+        executionOrder.push(`${name}-end`)
+        return {content: [{type: 'text', text: `Result from ${name}`}]}
+      })
 
       const resultsPromise = executeToolCalls(mockClient, toolCalls)
 
       await flush()
-      expect(mockCallTool).toHaveBeenCalledTimes(1)
+      // In parallel, all should have started
+      expect(mockCallTool).toHaveBeenCalledTimes(3)
 
-      releaseFirst()
-      await flush()
-      expect(mockCallTool).toHaveBeenCalledTimes(2)
-
-      releaseSecond()
       const results = await resultsPromise
 
-      expect(executionOrder).toEqual([
-        'tool-1-start',
-        'tool-1-end',
-        'tool-2-start',
-        'tool-2-end',
-        'tool-3-start',
-        'tool-3-end',
-      ])
+      expect(executionOrder.filter(s => s.endsWith('-start'))).toHaveLength(3)
       expect(results).toHaveLength(3)
-      expect(results[0].tool_call_id).toBe('call-1')
-      expect(results[1].tool_call_id).toBe('call-2')
-      expect(results[2].tool_call_id).toBe('call-3')
     })
     it('handles a single tool call and returns a one-element array', async () => {
       const toolCalls = [{id: 'solo-call', type: 'function', function: {name: 'solo-tool', arguments: '{}'}}]
@@ -370,7 +334,7 @@ describe('mcp.ts', () => {
       expect(results[1].content).toContain('Error:')
     })
 
-    it('executes tool calls sequentially, not in parallel', async () => {
+    it('executes tool calls in parallel, not sequentially', async () => {
       const executionOrder: string[] = []
 
       const toolCalls = [
@@ -391,8 +355,6 @@ describe('mcp.ts', () => {
         },
       ]
 
-      // Each call records its own start before resolving, allowing us to verify
-      // that call-2 cannot start until call-1 has already been recorded.
       mockCallTool.mockImplementation(({name}: {name: string}) => {
         executionOrder.push(name)
         return Promise.resolve({content: [{type: 'text', text: `Result for ${name}`}]})
@@ -400,7 +362,9 @@ describe('mcp.ts', () => {
 
       const results = await executeToolCalls(mockClient, toolCalls)
 
-      expect(executionOrder).toEqual(['tool-1', 'tool-2', 'tool-3'])
+      expect(executionOrder).toContain('tool-1')
+      expect(executionOrder).toContain('tool-2')
+      expect(executionOrder).toContain('tool-3')
       expect(results).toHaveLength(3)
       expect(results[0].tool_call_id).toBe('call-1')
       expect(results[1].tool_call_id).toBe('call-2')
