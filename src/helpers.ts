@@ -1,8 +1,27 @@
 import * as core from '@actions/core'
 import * as fs from 'fs'
+import * as path from 'path'
 import * as yaml from 'js-yaml'
 import {PromptConfig} from './prompt.js'
 import {InferenceRequest} from './inference.js'
+
+/**
+ * Validates that a path is within the current working directory
+ * to prevent path traversal attacks.
+ * @param filePath - The path to validate
+ * @returns The absolute path if valid
+ * @throws Error if path traversal is detected
+ */
+export function validatePath(filePath: string): string {
+  const resolvedPath = path.resolve(process.cwd(), filePath)
+  const relative = path.relative(process.cwd(), resolvedPath)
+
+  if (relative.startsWith('..') || path.isAbsolute(relative)) {
+    throw new Error(`Path traversal detected: ${filePath}`)
+  }
+
+  return resolvedPath
+}
 
 /**
  * Helper function to load content from a file or use fallback input
@@ -16,10 +35,11 @@ export function loadContentFromFileOrInput(filePathInput: string, contentInput: 
   const contentString = core.getInput(contentInput)
 
   if (filePath !== undefined && filePath !== '') {
-    if (!fs.existsSync(filePath)) {
+    const validatedPath = validatePath(filePath)
+    if (!fs.existsSync(validatedPath)) {
       throw new Error(`File for ${filePathInput} was not found: ${filePath}`)
     }
-    return fs.readFileSync(filePath, 'utf-8')
+    return fs.readFileSync(validatedPath, 'utf-8')
   } else if (contentString !== undefined && contentString !== '') {
     return contentString
   } else if (defaultValue !== undefined) {
@@ -69,7 +89,9 @@ export function buildResponseFormat(
         json_schema: schema,
       }
     } catch (error) {
-      throw new Error(`Invalid JSON schema: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      throw new Error(`Invalid JSON schema: ${error instanceof Error ? error.message : 'Unknown error'}`, {
+        cause: error,
+      })
     }
   }
   return undefined
@@ -113,9 +135,9 @@ export function parseCustomHeaders(input: string): Record<string, string> {
 
 /**
  * Pre-compiled regex for sensitive header patterns to optimize lookups.
- * Removed 'cookie', 'bearer', 'session', and 'credential' to align with test expectations.
+ * Includes common sensitive headers that should be masked in logs.
  */
-const SENSITIVE_HEADER_PATTERN = /key|token|secret|password|authorization/i
+const SENSITIVE_HEADER_PATTERN = /key|token|secret|password|authorization|cookie|bearer|session|credential/i
 
 /**
  * Pre-compiled regex for valid HTTP header names (RFC 7230).
