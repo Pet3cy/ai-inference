@@ -1,6 +1,7 @@
 import * as core from '@actions/core'
 import * as fs from 'fs'
 import * as yaml from 'js-yaml'
+import {validatePath} from './helpers.js'
 
 export interface PromptMessage {
   role: 'system' | 'user' | 'assistant'
@@ -41,7 +42,9 @@ export function parseTemplateVariables(input: string): TemplateVariables {
     }
     return parsed
   } catch (error) {
-    throw new Error(`Failed to parse template variables: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    throw new Error(`Failed to parse template variables: ${error instanceof Error ? error.message : 'Unknown error'}`, {
+      cause: error,
+    })
   }
 }
 
@@ -62,20 +65,20 @@ export async function parseFileTemplateVariables(fileInput: string): Promise<Tem
   let entries: Array<[string, string]>
   try {
     const parsed = yaml.load(fileInput) as Record<string, unknown>
-    if (typeof parsed !== 'object' || parsed === null) {
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
       throw new Error('File template variables must be a YAML object')
     }
 
-    entries = []
-    for (const [key, value] of Object.entries(parsed)) {
-      if (typeof value !== 'string') {
-        throw new Error(`File template variable '${key}' must be a string file path`)
-      }
-      entries.push([key, value])
+  for (const [key, value] of Object.entries(parsed)) {
+    if (typeof value !== 'string') {
+      throw new Error(
+        `Failed to parse file template variables: File template variable '${key}' must be a string file path`,
+      )
     }
   } catch (error) {
     throw new Error(
       `Failed to parse file template variables: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      {cause: error},
     )
   }
 
@@ -89,16 +92,18 @@ export async function parseFileTemplateVariables(fileInput: string): Promise<Tem
     const batchResults = await Promise.all(
       batch.map(async ([key, filePath]): Promise<[string, string]> => {
         try {
-          const content = await fs.promises.readFile(filePath, 'utf-8')
+          const validatedPath = validatePath(filePath)
+          const content = await fs.promises.readFile(validatedPath, 'utf-8')
           return [key, content]
         } catch (err) {
           const code = (err as NodeJS.ErrnoException)?.code
+          let message: string
           if (code === 'ENOENT') {
-            throw new Error(`File for template variable '${key}' was not found: ${filePath}`)
+            message = `File for template variable '${key}' was not found: ${filePath}`
+          } else {
+            message = `Failed to read file for template variable '${key}' at path '${filePath}': ${err instanceof Error ? err.message : 'Unknown error'}`
           }
-          throw new Error(
-            `Failed to read file for template variable '${key}' at path '${filePath}': ${err instanceof Error ? err.message : 'Unknown error'}`,
-          )
+          throw new Error(`Failed to parse file template variables: ${message}`, {cause: err})
         }
       }),
     )
@@ -142,11 +147,12 @@ export function replaceTemplateVariables(text: string, variables: TemplateVariab
  * Load and parse a prompt YAML file with template variable substitution
  */
 export function loadPromptFile(filePath: string, templateVariables: TemplateVariables = {}): PromptConfig {
-  if (!fs.existsSync(filePath)) {
+  const validatedPath = validatePath(filePath)
+  if (!fs.existsSync(validatedPath)) {
     throw new Error(`Prompt file not found: ${filePath}`)
   }
 
-  const fileContent = fs.readFileSync(filePath, 'utf-8')
+  const fileContent = fs.readFileSync(validatedPath, 'utf-8')
 
   try {
     const config = yaml.load(fileContent) as PromptConfig
@@ -175,7 +181,9 @@ export function loadPromptFile(filePath: string, templateVariables: TemplateVari
 
     return config
   } catch (error) {
-    throw new Error(`Failed to parse prompt file: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    throw new Error(`Failed to parse prompt file: ${error instanceof Error ? error.message : 'Unknown error'}`, {
+      cause: error,
+    })
   }
 }
 
