@@ -57,6 +57,12 @@ describe('helpers.ts', () => {
       expect(() => validatePath('/etc/passwd')).toThrow('Path traversal detected')
     })
 
+    it('throws for a sibling directory traversal', () => {
+      // If process.cwd() is /app, /app-secrets should be rejected
+      const siblingPath = path.resolve(process.cwd(), '..', `${path.basename(process.cwd())}-secrets`)
+      expect(() => validatePath(siblingPath)).toThrow('Path traversal detected')
+    })
+
     it('throws for path traversal with encoded or mixed separators', () => {
       // Multiple levels up
       expect(() => validatePath('../../etc/passwd')).toThrow('Path traversal detected')
@@ -303,7 +309,7 @@ password: pass123`
       expect(core.debug).toHaveBeenCalledWith('Custom header added: serviceName: my-service')
     })
 
-    it('masks cookie and session headers', () => {
+    it('masks cookie headers', () => {
       const yamlInput = `Cookie: session_id=12345
 X-Session: my-session-data`
 
@@ -314,6 +320,7 @@ X-Session: my-session-data`
         'X-Session': 'my-session-data',
       })
 
+      // Cookie and Session patterns should be masked
       expect(core.debug).toHaveBeenCalledWith('Custom header added: Cookie: ***MASKED***')
       expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Session: ***MASKED***')
     })
@@ -329,6 +336,7 @@ X-Credentials: user:pass`
         'X-Credentials': 'user:pass',
       })
 
+      // Bearer and credential patterns should be masked
       expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Bearer-Auth: ***MASKED***')
       expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Credentials: ***MASKED***')
     })
@@ -491,11 +499,12 @@ header2: |
       )
     })
 
-    it('masks cookie/session/credential/bearer header values in debug logs', () => {
+    it('masks cookie/session/bearer/credential header values in debug logs', () => {
       const yamlInput = `Cookie: session_id=12345
 X-Session-Data: xyz789
 X-Credentials: user:pass
-X-Bearer: only-bearer-no-token`
+X-Bearer: only-bearer-no-token
+X-Bearer-Token: abc123`
 
       const result = parseCustomHeaders(yamlInput)
 
@@ -504,22 +513,14 @@ X-Bearer: only-bearer-no-token`
         'X-Session-Data': 'xyz789',
         'X-Credentials': 'user:pass',
         'X-Bearer': 'only-bearer-no-token',
+        'X-Bearer-Token': 'abc123',
       })
 
+      // These patterns are sensitive and should be masked
       expect(core.debug).toHaveBeenCalledWith('Custom header added: Cookie: ***MASKED***')
       expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Session-Data: ***MASKED***')
       expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Credentials: ***MASKED***')
       expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Bearer: ***MASKED***')
-    })
-
-    it('still masks X-Bearer-Token because it contains "token" pattern', () => {
-      // 'bearer' was removed from sensitivePatterns, but 'token' was NOT.
-      // A header named 'X-Bearer-Token' still contains 'token' → must be masked.
-      const yamlInput = 'X-Bearer-Token: abc123'
-
-      const result = parseCustomHeaders(yamlInput)
-
-      expect(result).toEqual({'X-Bearer-Token': 'abc123'})
       expect(core.debug).toHaveBeenCalledWith('Custom header added: X-Bearer-Token: ***MASKED***')
     })
 

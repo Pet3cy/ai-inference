@@ -1,4 +1,5 @@
 import {vi, describe, expect, it, beforeEach, type MockedFunction} from 'vitest'
+import * as path from 'path'
 import * as core from '../__fixtures__/core.js'
 import * as path from 'path'
 
@@ -19,31 +20,32 @@ import * as path from 'path'
  * @param nonExistentFiles - Array of file paths that should be treated as non-existent
  */
 function mockFileContent(fileContents: Record<string, string> = {}, nonExistentFiles: string[] = []): void {
-  const resolvedContents: Record<string, string> = {}
+  // Resolve all paths to absolute paths to match validatePath behavior
+  const absFileContents: Record<string, string> = {}
   for (const [p, content] of Object.entries(fileContents)) {
-    resolvedContents[path.resolve(process.cwd(), p)] = content
+    absFileContents[path.resolve(process.cwd(), p)] = content
   }
 
-  const resolvedNonExistent = nonExistentFiles.map(p => path.resolve(process.cwd(), p))
+  const absNonExistentFiles = nonExistentFiles.map(p => path.resolve(process.cwd(), p))
 
   // Mock existsSync to return true for files that exist, false for those that don't
   mockExistsSync.mockImplementation((...args: unknown[]): boolean => {
     const [p] = args as [string]
-    const resolvedP = path.isAbsolute(p) ? p : path.resolve(process.cwd(), p)
-    if (resolvedNonExistent.includes(resolvedP)) {
+    const resolvedPath = path.resolve(process.cwd(), p)
+    if (absNonExistentFiles.includes(resolvedPath)) {
       return false
     }
-    return resolvedP in resolvedContents || true
+    return resolvedPath in absFileContents || true
   })
 
   // Mock readFileSync to return the content for known files
   mockReadFileSync.mockImplementation((...args: unknown[]): string => {
     const [p, options] = args as [string, BufferEncoding]
-    const resolvedP = path.isAbsolute(p) ? p : path.resolve(process.cwd(), p)
-    if (options === 'utf-8' && resolvedP in resolvedContents) {
-      return resolvedContents[resolvedP]
+    const resolvedPath = path.resolve(process.cwd(), p)
+    if (options === 'utf-8' && resolvedPath in absFileContents) {
+      return absFileContents[resolvedPath]
     }
-    throw new Error(`Unexpected file read: ${resolvedP}`)
+    throw new Error(`Unexpected file read: ${resolvedPath}`)
   })
 }
 

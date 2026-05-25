@@ -87,30 +87,35 @@ export async function parseFileTemplateVariables(fileInput: string): Promise<Tem
   const BATCH_SIZE = 100
   const result: TemplateVariables = {}
 
-  for (let i = 0; i < entries.length; i += BATCH_SIZE) {
-    const batch = entries.slice(i, i + BATCH_SIZE)
-    const batchResults = await Promise.all(
-      batch.map(async ([key, filePath]): Promise<[string, string]> => {
-        try {
-          const validatedPath = validatePath(filePath)
-          const content = await fs.promises.readFile(validatedPath, 'utf-8')
-          return [key, content]
-        } catch (err) {
-          const code = (err as NodeJS.ErrnoException)?.code
-          let message: string
-          if (code === 'ENOENT') {
-            message = `File for template variable '${key}' was not found: ${filePath}`
-          } else {
-            message = `Failed to read file for template variable '${key}' at path '${filePath}': ${err instanceof Error ? err.message : 'Unknown error'}`
+  try {
+    for (let i = 0; i < entries.length; i += BATCH_SIZE) {
+      const batch = entries.slice(i, i + BATCH_SIZE)
+      const batchResults = await Promise.all(
+        batch.map(async ([key, filePath]): Promise<[string, string]> => {
+          try {
+            const validatedPath = validatePath(filePath)
+            const content = await fs.promises.readFile(validatedPath, 'utf-8')
+            return [key, content]
+          } catch (err) {
+            const code = (err as NodeJS.ErrnoException)?.code
+            if (code === 'ENOENT') {
+              throw new Error(`File for template variable '${key}' was not found: ${filePath}`)
+            }
+            throw new Error(
+              `Failed to read file for template variable '${key}' at path '${filePath}': ${err instanceof Error ? err.message : 'Unknown error'}`,
+            )
           }
-          throw new Error(`Failed to parse file template variables: ${message}`, {cause: err})
-        }
-      }),
-    )
+        }),
+      )
 
-    for (const [key, content] of batchResults) {
-      result[key] = content
+      for (const [key, content] of batchResults) {
+        result[key] = content
+      }
     }
+  } catch (error) {
+    throw new Error(
+      `Failed to parse file template variables: ${error instanceof Error ? error.message : 'Unknown error'}`,
+    )
   }
 
   return result

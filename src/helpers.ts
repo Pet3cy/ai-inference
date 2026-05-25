@@ -6,17 +6,18 @@ import {PromptConfig} from './prompt.js'
 import {InferenceRequest} from './inference.js'
 
 /**
- * Resolves a path and validates that it is within the current workspace.
- * @param userPath - The path to validate
- * @returns The resolved absolute path
+ * Validates that a path is within the current working directory
+ * to prevent path traversal attacks.
+ * @param filePath - The path to validate
+ * @returns The absolute path if valid
  * @throws Error if path traversal is detected
  */
-export function validatePath(userPath: string): string {
-  const resolvedPath = path.resolve(process.cwd(), userPath)
-  const relativePath = path.relative(process.cwd(), resolvedPath)
+export function validatePath(filePath: string): string {
+  const resolvedPath = path.resolve(process.cwd(), filePath)
+  const relative = path.relative(process.cwd(), resolvedPath)
 
-  if (relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
-    throw new Error(`Path traversal detected: ${userPath}`)
+  if (relative.startsWith('..') || path.isAbsolute(relative)) {
+    throw new Error(`Path traversal detected: ${filePath}`)
   }
 
   return resolvedPath
@@ -134,8 +135,9 @@ export function parseCustomHeaders(input: string): Record<string, string> {
 
 /**
  * Pre-compiled regex for sensitive header patterns to optimize lookups.
+ * Includes common sensitive headers that should be masked in logs.
  */
-const SENSITIVE_HEADER_PATTERN = /key|token|secret|password|authorization|cookie|session|bearer|credential/i
+const SENSITIVE_HEADER_PATTERN = /key|token|secret|password|authorization|cookie|bearer|session|credential/i
 
 /**
  * Validate header names and mask sensitive values in logs
