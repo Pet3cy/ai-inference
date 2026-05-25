@@ -124,10 +124,12 @@ const TEMPLATE_VARIABLE_REGEX = /\{\{([\w.-]+)\}\}/g
 /**
  * Replace template variables in text using {{variable}} syntax.
  *
- * Includes a fast-path check for strings without placeholders to skip regex overhead.
+ * Performance optimization: Includes a guard clause to skip regex processing for strings
+ * that do not contain any template placeholders ('{{'). This significantly improves
+ * performance for large static content.
  */
 export function replaceTemplateVariables(text: string, variables: TemplateVariables): string {
-  // Performance optimization: skip regex for text that doesn't contain placeholders
+  // Guard clause: if no double-braces are present, skip the expensive regex replacement
   if (!text.includes('{{')) {
     return text
   }
