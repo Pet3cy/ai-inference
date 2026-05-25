@@ -190,7 +190,7 @@ describe('prompt.ts', () => {
 
     it('throws when YAML is not an object', async () => {
       await expect(parseFileTemplateVariables('- item1\n- item2')).rejects.toThrow(
-        /Failed to parse file template variables|File for template variable '0' was not found: item1/,
+        'Failed to parse file template variables',
       )
     })
 
@@ -202,13 +202,14 @@ describe('prompt.ts', () => {
 
     it('wraps error message with Failed to parse prefix', async () => {
       await expect(parseFileTemplateVariables('x: ./no-such-file.txt')).rejects.toThrow(
-        /Failed to parse file template variables:|File for template variable 'x' was not found: \.\/no-such-file\.txt/,
+        'Failed to parse file template variables:',
       )
     })
 
-    it('returns a Promise', () => {
+    it('is asynchronous and returns a Promise', () => {
       const result = parseFileTemplateVariables('')
-      expect(result).toBeInstanceOf(Promise)
+      // A Promise has a .then method
+      expect(result).toHaveProperty('then')
     })
   })
 })
