@@ -319,7 +319,7 @@ describe('main.ts', () => {
     expect(core.setOutput).toHaveBeenNthCalledWith(2, 'response-file', '/secure/temp/dir/modelResponse-abc123.txt')
     expect(mockWriteFileSync).toHaveBeenCalledWith('/secure/temp/dir/modelResponse-abc123.txt', 'Hello, user!', 'utf-8')
 
-    // Verify Job Summary was updated
+    // Verify job summary
     expect(core.summary.addHeading).toHaveBeenCalledWith('AI Inference Response')
     expect(core.summary.addRaw).toHaveBeenCalledWith('Hello, user!')
     expect(core.summary.addSeparator).toHaveBeenCalled()
