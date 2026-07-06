@@ -164,6 +164,7 @@ model: openai/gpt-4o
 
     // First call: reading the prompt file. Second call: reading file_input referenced file contents.
     const externalFilePath = 'vars.txt'
+    const resolvedExternalPath = path.resolve(process.cwd(), externalFilePath)
     mockReadFileSync.mockImplementation((p: string) => {
       const resolved = path.resolve(process.cwd(), p)
       if (resolved.endsWith('test.prompt.yml')) {
