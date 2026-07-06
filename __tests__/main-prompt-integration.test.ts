@@ -145,7 +145,8 @@ model: openai/gpt-4o
           },
         ],
         modelName: 'openai/gpt-4o',
-        maxTokens: 200,
+        maxCompletionTokens: 200,
+        maxCompletionTokensParam: 'max_tokens',
         endpoint: 'https://models.github.ai/inference',
         token: 'test-token',
       }),
@@ -164,6 +165,7 @@ model: openai/gpt-4o
 
     // First call: reading the prompt file. Second call: reading file_input referenced file contents.
     const externalFilePath = 'vars.txt'
+    const resolvedExternalPath = path.resolve(process.cwd(), externalFilePath)
     mockReadFileSync.mockImplementation((p: string) => {
       const resolved = path.resolve(process.cwd(), p)
       if (resolved.endsWith('test.prompt.yml')) {
@@ -248,7 +250,8 @@ model: openai/gpt-4o
           },
         ],
         modelName: 'openai/gpt-4o',
-        maxTokens: 200,
+        maxCompletionTokens: 200,
+        maxCompletionTokensParam: 'max_tokens',
         endpoint: 'https://models.github.ai/inference',
         token: 'test-token',
       }),
