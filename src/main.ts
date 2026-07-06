@@ -52,10 +52,14 @@ export async function run(): Promise<void> {
     // Parse token limit inputs
     const maxCompletionTokensInput =
       promptConfig?.modelParameters?.maxCompletionTokens ?? core.getInput('max-completion-tokens')
-    const maxCompletionTokens = maxCompletionTokensInput ? Number(maxCompletionTokensInput) : undefined
+    let maxCompletionTokens = maxCompletionTokensInput ? Number(maxCompletionTokensInput) : undefined
+    let maxCompletionTokensParam: 'max_tokens' | 'max_completion_tokens' | undefined = undefined
 
     const maxTokensInput = promptConfig?.modelParameters?.maxTokens ?? core.getInput('max-tokens')
-    const maxTokens = maxCompletionTokens != null ? undefined : maxTokensInput ? Number(maxTokensInput) : undefined
+    if (maxCompletionTokens == null && maxTokensInput) {
+      maxCompletionTokens = Number(maxTokensInput)
+      maxCompletionTokensParam = 'max_tokens'
+    }
 
     const token = process.env['GITHUB_TOKEN'] || core.getInput('token')
     if (token === undefined) {
@@ -90,8 +94,8 @@ export async function run(): Promise<void> {
       modelName,
       temperature,
       topP,
-      maxTokens,
       maxCompletionTokens,
+      maxCompletionTokensParam,
       endpoint,
       token,
       customHeaders,

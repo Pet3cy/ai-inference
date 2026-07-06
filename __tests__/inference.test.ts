@@ -671,8 +671,8 @@ describe('inference.ts', () => {
     it('sends max_tokens when only maxTokens is set', async () => {
       const requestWithMaxTokens = {
         ...mockRequest,
-        maxCompletionTokens: undefined,
-        maxTokens: 100,
+        maxCompletionTokens: 100,
+        maxCompletionTokensParam: 'max_tokens' as const,
       }
 
       const mockResponse = {
@@ -701,7 +701,7 @@ describe('inference.ts', () => {
       const requestWithNoTokens = {
         ...mockRequest,
         maxCompletionTokens: undefined,
-        maxTokens: undefined,
+        maxCompletionTokensParam: undefined,
       }
 
       const mockResponse = {

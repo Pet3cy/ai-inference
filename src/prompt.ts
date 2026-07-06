@@ -9,7 +9,8 @@ export interface PromptMessage {
 }
 
 export interface ModelParameters {
-  maxTokens?: number // Deprecated
+  /** @deprecated Use maxCompletionTokens instead */
+  maxTokens?: number
   maxCompletionTokens?: number
   temperature?: number
   topP?: number
@@ -69,11 +70,13 @@ export async function parseFileTemplateVariables(fileInput: string): Promise<Tem
       throw new Error('File template variables must be a YAML object')
     }
 
-  for (const [key, value] of Object.entries(parsed)) {
-    if (typeof value !== 'string') {
-      throw new Error(
-        `Failed to parse file template variables: File template variable '${key}' must be a string file path`,
-      )
+    entries = Object.entries(parsed)
+    for (const [key, value] of entries) {
+      if (typeof value !== 'string') {
+        throw new Error(
+          `Failed to parse file template variables: File template variable '${key}' must be a string file path`,
+        )
+      }
     }
   } catch (error) {
     throw new Error(
@@ -99,10 +102,11 @@ export async function parseFileTemplateVariables(fileInput: string): Promise<Tem
           } catch (err) {
             const code = (err as NodeJS.ErrnoException)?.code
             if (code === 'ENOENT') {
-              throw new Error(`File for template variable '${key}' was not found: ${filePath}`)
+              throw new Error(`File for template variable '${key}' was not found: ${filePath}`, {cause: err})
             }
             throw new Error(
               `Failed to read file for template variable '${key}' at path '${filePath}': ${err instanceof Error ? err.message : 'Unknown error'}`,
+              {cause: err},
             )
           }
         }),
@@ -115,6 +119,7 @@ export async function parseFileTemplateVariables(fileInput: string): Promise<Tem
   } catch (error) {
     throw new Error(
       `Failed to parse file template variables: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      {cause: error},
     )
   }
 
